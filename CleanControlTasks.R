@@ -29,11 +29,29 @@ Stroop_tidier <- Stroop_merged %>%
          Participant.Device.Type, Participant.OS, Participant.Browser) %>%
   filter(Screen.Name=="PracticeArrow" | Screen.Name=="RealArrow",
          !(Participant.Private.ID %in% ToExclude)) %>%
-  unite(col="OrderControl", order.2ubj:order.kx72, sep="", remove=T)
+  unite(col="OrderControl", order.2ubj:order.kx72, sep="", remove=T) %>%
+  rename("compatibility"=Go) %>%
+  mutate(compatibility=recode(compatibility, CongruentLeft.png = "compatible",
+         CongruentRight.png = "compatible",
+         IncongruentLeft.png = "incompatible",
+         IncongruentRight.png = "incompatible"))
 
 #Check whether the necessary participants are exluded. Should be only FALSE
 unique(Stroop_tidier$Participant.Private.ID %in% ToExclude)
 rio::export(Stroop_tidier, paste0(path.out, "Stroop_tidier_",date, ".csv"))
+
+### SCORES STROOP
+Stroop_scores <- Stroop_tidier %>%
+  filter(Correct==1 | Screen.Name=="RealArrow") %>%
+  group_by(Participant.Private.ID, compatibility) %>%
+  summarise(RT =mean(Reaction.Time)) %>%
+  mutate(SRC = RT[compatibility=="incompatible"]-RT[compatibility=="compatible"]) %>%
+  ungroup() %>%
+  spread(compatibility, RT)
+
+rio::export(Stroop_scores, paste0(path.out, "Stroop_scores_",date, ".csv"))
+
+
 
 ###### Deary Liewald - SoP #######################
 SoP_merged <- read.csv("SoP_merged_19042021.csv")
@@ -44,15 +62,34 @@ colnames(SoP_merged)
 SoP_tidier <- SoP_merged %>%
   select(UTC.Timestamp, UTC.Date, Experiment.Version, Task.Name, Participant.Private.ID,Participant.Status,
          randomiser.3pls,order.2ubj, order.kx72, Trial.Number, Screen.Name,
-         Reaction.Time,  Correct, Timed.Out, Response, Answer1, display, ISI,
+         Reaction.Time,  Correct, Response, Answer1, display, ISI,
          Participant.Device.Type, Participant.OS, Participant.Browser) %>%
   filter(display=="SRT_practicetrials" | display=="SRT_realtrials" | display=="CRT_practicetrials" | display=="CRT_realtrials",
          !(Participant.Private.ID %in% ToExclude)) %>%
-  unite(col="OrderControl", order.2ubj:order.kx72, sep="", remove=T)
+  unite(col="OrderControl", order.2ubj:order.kx72, sep="", remove=T) %>%
+  rename("SoPTask"=Screen.Name) %>%
+  mutate(SoPTask = recode(SoPTask, SRT_PracticeTrials = "SRT_practice",
+                          SRT_RealTrials="SRT_real",
+                          CRT_PracticeTrials="CRT_practice",
+                          CRT_RealTrials="CRT_real"),
+         Reaction.Time= as.numeric(Reaction.Time))
 
 #Check whether the necessary participants are exluded. Should be only FALSE
 unique(SoP_tidier$Participant.Private.ID %in% ToExclude)
 rio::export(SoP_tidier, paste0(path.out, "SoP_tidier_",date, ".csv"))
+
+### SCORES SoP
+SoP_scores <- SoP_tidier %>%
+  filter(Correct==1) %>%
+  filter(SoPTask=="SRT_real" | SoPTask=="CRT_real") %>%
+  group_by(Participant.Private.ID, SoPTask) %>%
+  summarise(RT = mean(Reaction.Time)) %>%
+  ungroup() %>%
+  spread(SoPTask, RT) %>%
+  rename("CRT"=CRT_real, "SRT"=SRT_real)
+
+rio::export(SoP_scores, paste0(path.out, "SoP_scores_",date, ".csv"))
+
 
 ###### Digit Reorder - WM #######################
 WM_merged <- read.csv("WM_merged_19042021.csv")
@@ -74,5 +111,14 @@ WM_tidier <- WM_merged %>%
 unique(WM_tidier$Participant.Private.ID %in% ToExclude)
 rio::export(WM_tidier, paste0(path.out, "WM_tidier_",date, ".csv"))
 
+### SCORES WM
+WM_scores <- WM_tidier %>%
+  filter(display=="RealTest") %>%
+  mutate(Ndigits= str_count(CorrectAns)) %>%
+  group_by(Participant.Private.ID) %>%
+  summarise(WM.Score = sum(Ndigits*Correct)) %>%
+  ungroup()
+
+rio::export(WM_scores, paste0(path.out, "WM_scores_",date, ".csv"))
 
 
