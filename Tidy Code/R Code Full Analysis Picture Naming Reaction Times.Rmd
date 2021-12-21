@@ -34,7 +34,7 @@ date = format(Sys.Date(), "%d%m%Y")
 
 ##### Read in data
 
-```{r, include=F}
+```{r}
 ##### Read files ####
 PNobjects <- read.csv("../Data/Tidy/PNobjects_complete_final.csv") %>%
   filter(Age.Category !="")
@@ -85,7 +85,7 @@ PN_RT <- PN_all %>%
 ```
 
 ### Plots for Reaction Time
-```{r Boxplot_PNrt, warning=F, message=F, echo=F} 
+```{r Boxplot_PNrt, warning=F, message=F} 
 # Boxplot for Reaction Time
 # png(file="./Figures and Tables/Boxplot_PNrt.png",
 # width=600, height=350)
@@ -106,7 +106,7 @@ PN_RT <- PN_all %>%
 # dev.off()
 ```
 
-```{r Barplot_PNrt, warning=F, message=F, echo=F}
+```{r Barplot_PNrt, warning=F, message=F}
 
 # Barplot Picture Naming Reaction times
 # png(file="./Figures and Tables/Barplot_PNrt.png",

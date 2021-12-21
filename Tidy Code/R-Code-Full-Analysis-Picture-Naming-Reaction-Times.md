@@ -7,6 +7,18 @@ Last compiled on 21/12/21
 
 ##### Read in data
 
+``` r
+##### Read files ####
+PNobjects <- read.csv("../Data/Tidy/PNobjects_complete_final.csv") %>%
+  filter(Age.Category !="")
+
+PNactions <- read.csv("../Data/Tidy/PNactions_complete_final.csv") %>%
+  filter(Age.Category !="")
+ 
+# head(PNobjects[1:6,1:4])
+# tail(PNobjects[1:6,1:4])
+```
+
 ## Descriptives
 
 *Mean and standard deviations picture naming tasks*
@@ -61,9 +73,55 @@ PN_RT <- PN_all %>%
 
 ### Plots for Reaction Time
 
+``` r
+# Boxplot for Reaction Time
+# png(file="./Figures and Tables/Boxplot_PNrt.png",
+# width=600, height=350)
+
+(Boxplot_PNrt <- ggplot(PN_RT, aes(x=Task.Name, y=RT, fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    stat_summary(aes(label=round(..y..), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=4,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Type of Task",
+         y = "Reaction Time (in ms)",
+         title = "Reaction Time Boxplot per Age Group for Object and Action Naming")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+```
+
 ![](GBGon_PNrt_figs/PNrt_figs_Boxplot_PNrt-1.png)<!-- -->
 
+``` r
+# dev.off()
+```
+
+``` r
+# Barplot Picture Naming Reaction times
+# png(file="./Figures and Tables/Barplot_PNrt.png",
+# width=600, height=350)
+
+(Barplot_PNrt <-ggplot(PN_RT, aes(x=Task.Name, y=RT, fill=as.factor(Age.Category))) +
+  stat_summary(geom="bar", fun=mean, position="dodge", colour="black") +
+  geom_errorbar(stat="summary", fun.data = mean_sdl, fun.args = list(mult=1),  
+                width=0.4, position=position_dodge(0.9), colour="grey50") +
+  coord_cartesian(ylim = c(0,1500)) +
+  scale_y_continuous(minor_breaks = seq(0,2000,50),
+                     breaks = seq(0,1500,250)) +
+  labs(title = "Reaction Time for Picture Naming",
+       x="Type of Task",
+       y="Reaction Time (+/- S.D.)") +
+     scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old"))+
+  theme_grey())
+```
+
 ![](GBGon_PNrt_figs/PNrt_figs_Barplot_PNrt-1.png)<!-- -->
+
+``` r
+# dev.off()
+```
 
 #### Missing data CR composite variable
 
