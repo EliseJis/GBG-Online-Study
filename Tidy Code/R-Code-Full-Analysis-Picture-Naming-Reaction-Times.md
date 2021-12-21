@@ -61,9 +61,9 @@ PN_RT <- PN_all %>%
 
 ### Plots for Reaction Time
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_Boxplot_PNrt-1.png)<!-- -->
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_Barplot_PNrt-1.png)<!-- -->
 
 #### Missing data CR composite variable
 
@@ -91,7 +91,7 @@ PNactions_RT <- PN_RT %>%
 hist(PNactions_RT$RT, breaks = 100)
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_hist_PNactRT-1.png)<!-- -->
 
 #### Check for Skewness seen the histograms
 
@@ -231,7 +231,7 @@ Mfull_PNact_RT <- lmer(RT ~ Age.Category*CR.composite.before + zSoP.comp + zWM.S
 plot(resid(Mfull_PNact_RT), actRTna.rm$RT)
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-18-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNactRT_LinearityAssumption-1.png)<!-- -->
 We can assume linearity.
 
 ##### Assumption 2 - Homogeneity of Variance / Homoscedasticity
@@ -266,7 +266,7 @@ abline(h=0, lty=2, lwd=2, col="purple")
 lines(smooth.spline(fitted(Mfull_PNact_RT), residuals(Mfull_PNact_RT)), col="red") 
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-20-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNactRT_HomoscedasticityAssumption-1.png)<!-- -->
 Purple and red line roughly overlap, so we can assume homoscedasticity
 
 ##### Assumption 3 - Residuals are normally distributed
@@ -276,7 +276,7 @@ Purple and red line roughly overlap, so we can assume homoscedasticity
 qqmath(Mfull_PNact_RT)
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-21-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNactRT_qqplot-1.png)<!-- -->
 
 Where does the bulk on the right and the outliers on the left come from?
 
@@ -308,7 +308,7 @@ p <- ggplot(dda)+stat_qq(aes_string(sample=sample_var, colour=group_var)) +
 p
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-22-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNactRT_qqplot_groups-1.png)<!-- -->
 
 The younger age category seems to have a bigger bulk at the right but
 all age groups follow a similar pattern.
@@ -372,9 +372,9 @@ random effects.
 qqmath(logMfull_PNact_RT)
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-26-1.png)<!-- -->
-Looks much better now. Except the bulk on the left and right. But we
-will assume the assumption of normality of residuals is met.
+![](GBGon_PNrt_figs/PNrt_figs_PNactRT_qqplot_log-1.png)<!-- --> Looks
+much better now. Except the bulk on the left and right. But we will
+assume the assumption of normality of residuals is met.
 
 *Data per participant:*
 
@@ -388,7 +388,7 @@ actdataPP <- PNactions_RT %>%
 car::Boxplot(log(PNactions_RT$RT) ~ PNactions_RT$Age.Category, id.method="identify")
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-27-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNactRT_Outlierboxplot-1.png)<!-- -->
 
     ##  [1] "579"  "1195" "1264" "2181" "2433" "3129" "3968" "4571" "5819" "5903"
     ## [11] "2065" "4649"
@@ -407,7 +407,7 @@ average), maybe they were positively/negatively primed somehow.
 hist(log(PNactions_RT$RT)) 
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-28-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_Hist_PNactRT_log-1.png)<!-- -->
 
 *Homoscedasticity with log-transformed reaction time*
 
@@ -418,7 +418,7 @@ abline(h=0, lty=2, lwd=2, col="purple")
 lines(smooth.spline(fitted(logMfull_PNact_RT), residuals(logMfull_PNact_RT)), col="red") 
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNactRT_log_homoscedasticity-1.png)<!-- -->
 Purple and red line roughly overlap, so we can assume homoscedasticity
 
 ### Results log RT action naming
@@ -490,7 +490,7 @@ PNobjects_RT <- PN_RT %>%
 hist(PNobjects_RT$RT, breaks = 100)
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-32-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_hist_PNobjRT-1.png)<!-- -->
 
 ``` r
 skewness(log(PNobjects_RT$RT))
@@ -624,7 +624,7 @@ Mfull_PNobj_RT <- lmer(RT ~ Age.Category*CR.composite.before + zSoP.comp + zWM.S
 plot(resid(Mfull_PNobj_RT), objRTna.rm$RT)
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-43-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNobjRT_LinearityAssumption-1.png)<!-- -->
 
 We can assume linearity.
 
@@ -660,7 +660,7 @@ abline(h=0, lty=2, lwd=2, col="purple")
 lines(smooth.spline(fitted(Mfull_PNobj_RT), residuals(Mfull_PNobj_RT)), col="red") 
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-45-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNobjRT_HomoscedasticityAssumption-1.png)<!-- -->
 Purple and red line roughly overlap, so we can assume homoscedasticity
 
 ##### Assumption 3 - Residuals are normally distributed
@@ -670,7 +670,7 @@ Purple and red line roughly overlap, so we can assume homoscedasticity
 qqmath(Mfull_PNobj_RT)
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-46-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNobjRT_qqplot-1.png)<!-- -->
 
 Where does the bulk on the right come from? (CHECK OUTLIERS)
 
@@ -700,7 +700,7 @@ p <- ggplot(dda)+stat_qq(aes_string(sample=sample_var, colour=group_var)) +
 p
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-47-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNobjRT_qqplot_groups-1.png)<!-- -->
 
 The Older age group seems to have a bigger bulk at the right but all age
 groups follow a similar pattern.
@@ -764,8 +764,8 @@ random effects.
 qqmath(logMfull_PNobj_RT)
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-51-1.png)<!-- -->
-Looks much better now. Except the outliers on the right. We will assume
+![](GBGon_PNrt_figs/PNrt_figs_PNobjRT_log_qqplot-1.png)<!-- --> Looks
+much better now. Except the outliers on the right. We will assume
 normality of residuals.
 
 *Data per participant:*
@@ -780,7 +780,7 @@ objdataPP <- PNobjects_RT %>%
 car::Boxplot(log(PNobjects_RT$RT) ~ PNobjects_RT$Age.Category, id.method="identify")
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-52-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNobjRT_Outlierboxplot-1.png)<!-- -->
 
     ##  [1] "1597" "5762" "5719" "3356" "2105" "5437" "4334" "4700" "4362" "3311"
     ## [11] "2987" "3070" "3811" "5187" "1672" "3640" "5385" "3530" "1097" "3619"
@@ -794,7 +794,7 @@ Check each row in the table that was detected as outlier.
 hist(log(PNobjects$RT),breaks=50) 
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-53-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_hist_PNobjRT_log-1.png)<!-- -->
 
 *Homoscedasticity with log-transformed reaction time*
 
@@ -805,7 +805,7 @@ abline(h=0, lty=2, lwd=2, col="purple")
 lines(smooth.spline(fitted(logMfull_PNobj_RT), residuals(logMfull_PNobj_RT)), col="red") 
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-54-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNobjRT_log_HomoscedasticityAssumption-1.png)<!-- -->
 Purple and red line roughly overlap, so we can assume homoscedasticity
 
 ### Results RT object naming
@@ -892,7 +892,7 @@ cbbPalette <- c("#999999", "#E69F00", "#56B4E9")
          scale_colour_manual(values = cbbPalette))
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-58-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNactRT_SoP_corplot-1.png)<!-- -->
 *Relationship RT and Cognitive Processing Speed for reaction time
 (outcome) of picture naming Objects*
 
@@ -914,7 +914,7 @@ cbbPalette <- c("#999999", "#E69F00", "#56B4E9")
          scale_colour_manual(values = cbbPalette))
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-59-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNobjRT_SoP_corplot-1.png)<!-- -->
 
 *Relationship Reaction Times and Cognitive Reserve (CR) for the period
 preceding the COVID-19 pandemic for reaction time (outcome) of picture
@@ -941,7 +941,7 @@ naming Actions*
   scale_colour_manual(values = cbbPalette))
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-60-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNactRT_CR_corplot-1.png)<!-- -->
 
 ``` r
 # dev.off()
@@ -971,7 +971,7 @@ naming Objects*
   scale_colour_manual(values = cbbPalette))
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-61-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_PNobjRT_CR_corplot-1.png)<!-- -->
 
 ``` r
 # dev.off()   
@@ -1104,7 +1104,7 @@ CompareCR
    geom_hline(yintercept=0))
 ```
 
-![](R-Code-Full-Analysis-Picture-Naming-Reaction-Times_files/figure-gfm/unnamed-chunk-67-1.png)<!-- -->
+![](GBGon_PNrt_figs/PNrt_figs_Barplot_CompareCRperiods-1.png)<!-- -->
 
 ``` r
 # dev.off()

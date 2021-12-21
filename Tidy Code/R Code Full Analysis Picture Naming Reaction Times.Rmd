@@ -9,7 +9,7 @@ bibliography: ["packages.bib","references.bib"]
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(
-  fig.path = "GBGon_PNrt_figs/PNrt_figs-"
+  fig.path = "GBGon_PNrt_figs/PNrt_figs_"
 )
 knitr::opts_knit$set(root.dir = '../Tidy Code') 
 ```
@@ -85,7 +85,7 @@ PN_RT <- PN_all %>%
 ```
 
 ### Plots for Reaction Time
-```{r, warning=F, message=F, echo=F} 
+```{r Boxplot_PNrt, warning=F, message=F, echo=F} 
 # Boxplot for Reaction Time
 # png(file="./Figures and Tables/Boxplot_PNrt.png",
 # width=600, height=350)
@@ -106,7 +106,7 @@ PN_RT <- PN_all %>%
 # dev.off()
 ```
 
-```{r, warning=F, message=F, echo=F}
+```{r Barplot_PNrt, warning=F, message=F, echo=F}
 
 # Barplot Picture Naming Reaction times
 # png(file="./Figures and Tables/Barplot_PNrt.png",
@@ -150,7 +150,7 @@ The missing data for the CR composite variable posed a problem in that it remove
 
 ### Linear Mixed Models - Action naming
 
-```{r}
+```{r hist_PNactRT}
 # Only include trials for action naming (i.e., type==1)
 PNactions_RT <- PN_RT %>%
   dplyr::filter(type==1)
@@ -246,7 +246,7 @@ ranef(Mfull_PNact_RT)#examines the random effects
 
 ##### Assumption 1 - Linearity
 
-```{r, comment=F, warning=F}
+```{r PNactRT_LinearityAssumption, comment=F, warning=F}
 plot(resid(Mfull_PNact_RT), actRTna.rm$RT)
 ```
 We can assume linearity.
@@ -267,7 +267,7 @@ anova(Levene.Mfull) #Displays the results
 ```
 p>0.05,so we can assume homogeneity of variance/homoscedasticity
 
-```{r}
+```{r PNactRT_HomoscedasticityAssumption}
 #Create plot for homogeneity of variance
 plot(fitted(Mfull_PNact_RT), residuals(Mfull_PNact_RT),
      xlab = "Fitted Values", ylab="Residuals")
@@ -278,7 +278,7 @@ Purple and red line roughly overlap, so we can assume homoscedasticity
 
 ##### Assumption 3 - Residuals are normally distributed
 
-```{r}
+```{r PNactRT_qqplot}
 #Create qq plot of the full model
 qqmath(Mfull_PNact_RT)
 ```
@@ -287,7 +287,7 @@ Where does the bulk on the right and the outliers on the left come from?
 
 After checking outliers: outliers on the left are now gone and were driven by a typo in the RT transcription of one participant
 
-```{r}
+```{r PNactRT_qqplot_groups}
 #Check whether the deviations from the QQplot are due to age category
 dda <- cbind(augment(Mfull_PNact_RT), group=actRTna.rm$Age.Category)
 sample_var <- "RT"
@@ -342,7 +342,7 @@ To assess overfitting of the model, we conducted a principal components analysis
 
 *Recheck model fit after log transformation*
 
-```{r}
+```{r PNactRT_qqplot_log}
 ## Normality of residuals
 qqmath(logMfull_PNact_RT)
 ```
@@ -350,7 +350,7 @@ Looks much better now. Except the bulk on the left and right. But we will assume
 
 *Data per participant:*
 
-```{r}
+```{r PNactRT_Outlierboxplot}
 actdataPP <- PNactions_RT %>%
   dplyr::group_by(ID) %>%
   dplyr::summarise(meanRT = mean(RT, na.rm=T),
@@ -367,13 +367,13 @@ car::Boxplot(log(PNactions_RT$RT) ~ PNactions_RT$Age.Category, id.method="identi
 
 *Histogram of transformed RTs for action naming*
 
-``` {r}
+``` {r Hist_PNactRT_log}
 hist(log(PNactions_RT$RT)) 
 ```
 
 *Homoscedasticity with log-transformed reaction time*
 
-```{r}
+```{r PNactRT_log_homoscedasticity}
 plot(fitted(logMfull_PNact_RT), residuals(logMfull_PNact_RT),
      xlab = "Fitted Values", ylab="Residuals")
 abline(h=0, lty=2, lwd=2, col="purple")
@@ -408,7 +408,7 @@ Conditional R2 is the variance explained by the whole model.
 
 ## Picture Naming Objects
 
-```{r}
+```{r hist_PNobjRT}
 PNobjects_RT <- PN_RT %>%
   # Only include trials for object naming (i.e., type==2)
   dplyr::filter(type==2) %>%
@@ -500,7 +500,7 @@ ranef(Mfull_PNobj_RT)
 
 ##### Assumption 1 - Linearity
 
-```{r, comment=F, warning=F}
+```{r PNobjRT_LinearityAssumption, comment=F, warning=F}
 plot(resid(Mfull_PNobj_RT), objRTna.rm$RT)
 ```
 
@@ -522,7 +522,7 @@ anova(Levene.Mfull) #Displays the results
 ``` 
 p>0.05,so we can assume homogeneity of variance/homoscedasticity
 
-```{r}
+```{r PNobjRT_HomoscedasticityAssumption}
 #Create plot for homogeneity of variance
 plot(fitted(Mfull_PNobj_RT), residuals(Mfull_PNobj_RT),
      xlab = "Fitted Values", ylab="Residuals")
@@ -533,14 +533,14 @@ Purple and red line roughly overlap, so we can assume homoscedasticity
 
 ##### Assumption 3 - Residuals are normally distributed
 
-```{r}
+```{r PNobjRT_qqplot}
 #QQ plot to check normality of residuals
 qqmath(Mfull_PNobj_RT)
 ```
 
 Where does the bulk on the right come from? (CHECK OUTLIERS)
 
-```{r}
+```{r PNobjRT_qqplot_groups}
 #Check whether the deviations from the QQplot are due to age category
 dda <- cbind(augment(Mfull_PNobj_RT), group=objRTna.rm$Age.Category)
 sample_var <- "RT"
@@ -595,7 +595,7 @@ To assess overfitting of the model, we conducted a principal components analysis
 
 *Recheck model fit after log transformation*
 
-```{r}
+```{r PNobjRT_log_qqplot}
 ## Normality of residuals
 qqmath(logMfull_PNobj_RT)
 ```
@@ -603,7 +603,7 @@ Looks much better now. Except the outliers on the right. We will assume normalit
 
 *Data per participant:*
 
-```{r}
+```{r PNobjRT_Outlierboxplot}
 objdataPP <- PNobjects_RT %>%
   dplyr::group_by(ID) %>%
   dplyr::summarise(meanRT = mean(RT, na.rm=T),
@@ -617,13 +617,13 @@ car::Boxplot(log(PNobjects_RT$RT) ~ PNobjects_RT$Age.Category, id.method="identi
 
 *Histogram of transformed RTs for object naming*
 
-``` {r}
+```{r hist_PNobjRT_log}
 hist(log(PNobjects$RT),breaks=50) 
 ```
 
 *Homoscedasticity with log-transformed reaction time*
 
-```{r}
+```{r PNobjRT_log_HomoscedasticityAssumption}
 plot(fitted(logMfull_PNobj_RT), residuals(logMfull_PNobj_RT),
      xlab = "Fitted Values", ylab="Residuals")
 abline(h=0, lty=2, lwd=2, col="purple")
@@ -667,7 +667,7 @@ cbbPalette <- c("#999999", "#E69F00", "#56B4E9")
 
 *Relationship RT and Cognitive Processing speed for reaction time (outcome) of picture naming Actions*
 
-```{r}
+```{r PNactRT_SoP_corplot}
 (plot.PNact_zSOP <- ggplot(PNactions_RT, aes(x=zSoP.comp, y=RT, colour=as.factor(Age.Category))) +
    geom_jitter(width = 0.25, size=0.8, show.legend =F) +
    geom_smooth(method = "lm", formula = y~x, fill="white", colour="black", show.legend=F) +
@@ -686,7 +686,7 @@ cbbPalette <- c("#999999", "#E69F00", "#56B4E9")
 ```
 *Relationship RT and Cognitive Processing Speed for reaction time (outcome) of picture naming Objects*
 
-```{r, warning = F}
+```{r PNobjRT_SoP_corplot, warning = F}
 (plot.PNobj_zSOP <- ggplot(PNobjects_RT, aes(x=zSoP.comp, y=RT, colour=as.factor(Age.Category))) +
    geom_jitter(size=0.8, width = 0.25, show.legend=F) +
    geom_smooth(method = "lm", formula = y~x, fill="white", size=1, colour="black") +
@@ -707,7 +707,7 @@ cbbPalette <- c("#999999", "#E69F00", "#56B4E9")
 
 *Relationship Reaction Times and Cognitive Reserve (CR) for the period preceding the COVID-19 pandemic for reaction time (outcome) of picture naming Actions*
 
-```{r, warning = F}
+```{r PNactRT_CR_corplot, warning = F}
 #Save figure as tiff file
 # tiff(file="./Figures and Tables/Figure_1.tiff",
 # res = 300, family = "sans", width = 7, height=4.5, units="in")
@@ -731,7 +731,7 @@ cbbPalette <- c("#999999", "#E69F00", "#56B4E9")
 ```
 *Relationship Reaction Times and Cognitive reserve for the period preceding the COVID-19 pandemic for reaction time (outcome) of picture naming Objects*
 
-```{r, warning = F}
+```{r PNobjRT_CR_corplot, warning = F}
 # png(file="./Figures and Tables/RelationCR-PNobjRT.png",
 # width=600, height=350)
 
@@ -807,7 +807,7 @@ CompareCR
 ```
 *Visualisation Average CR before and during Covid-19*
 
-```{r}
+```{r Barplot_CompareCRperiods}
 #Save as png file
 # png(file="./Figures and Tables/CR_Before-vs-During.png",
 # width=350, height=200)
