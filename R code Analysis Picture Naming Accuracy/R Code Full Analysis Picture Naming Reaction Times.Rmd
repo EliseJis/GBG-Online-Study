@@ -1,0 +1,623 @@
+---
+title: "R Code Full Analysis Picture Naming Reaction Times"
+author: "Elise Oosterhuis"
+date: "Last compiled on `r format(Sys.time(), '%d/%m/%y')`"
+output: rmarkdown::github_document
+bibliography: ["packages.bib","references.bib"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  fig.path = "GBGon_PNrt_figs/PNacc_figs_"
+)
+knitr::opts_knit$set(root.dir = '../R code Analysis Picture Naming Accuracy') 
+```
+
+# Analysis Picture Naming Accuracy GBG online study
+
+```{r, include=FALSE, message=F, warning=F, echo=F}
+############ VF DATA EXTRACTION AND TIDYING SCRIPT #######################
+requiredPackages = c('dplyr','tidyr','purrr', 'rio', 'tibble', 'hablar', 'fs', 'e1071',
+                     'stringr', 'tidyverse', 'readxl', 'lme4', 'lmerTest', 'performance',
+                     'lattice', 'broom', 'car',  'DHARMa',  'MuMIn', 'Hmisc', 'knitr') #'xvalglms', 'trtools',
+for(p in requiredPackages){
+  if(!require(p,character.only = TRUE)) install.packages(p)
+  library(p,character.only = TRUE)
+}
+
+#  Clean Environment
+rm(list=ls())
+
+#  Obtain data + set working and output directory
+date = format(Sys.Date(), "%d%m%Y")
+```
+
+##### Read in data
+
+```{r}
+##### Read files ####
+PNobjects <- read.csv("../Data/Tidy/PNobjects_complete_final.csv") %>%
+  filter(Age.Category !="")
+
+PNactions <- read.csv("../Data/Tidy/PNactions_complete_final.csv") %>%
+  filter(Age.Category !="")
+
+# head(PNobjects[1:6,1:4])
+# tail(PNobjects[1:6,1:4])
+```
+
+## Descriptives
+
+*Mean and standard deviations picture naming tasks*
+
+```{r, message=F}
+options(dplyr.summarise.inform = FALSE) #Suppress summarise message (`summarise()` has grouped output by 'Task.Name', 'Age.Category'. You can override using the `.groups` argument.) in output
+
+# Combine both picture-naming datasets
+PN_all <- rbind(PNobjects, PNactions) %>%
+  convert(chr(type)) %>%
+  #Change task names
+  dplyr::mutate(Task.Name=dplyr::recode(Task.Name, 'Picture Naming Task - Actions' 
+                                = "Actions", 'Picture Naming Task - Objects' 
+                                = "Objects")) %>%
+  #Recode age groups as numeric values
+  dplyr::mutate(Age.Category=as.factor(dplyr::recode(Age.Category, '18 to 30 years old'=1,
+                                    '40 to 55 years old'=2,
+                                    '65 to 80 years old'=3)))
+  
+
+
+# Mean and SD (in %) for picture naming - Accuracy
+(PNacc_sum <- PN_all %>%
+  group_by(Task.Name,Age.Category) %>%
+#Obtain mean and standard deviation for reaction time per task (actions and objects     separately) and Age Group
+  dplyr::summarise(mean_Acc = round((mean(Acc,na.rm=T)*100),2), #in percentages
+            sd_Acc = round((sd(Acc,na.rm = T)*100),2)))  #in percentages
+
+## Save output table as .csv file
+# write.csv(PNacc_sum, "./Figures and Tables/Descriptives_PNacc.csv", row.names = F)
+
+```
+
+### Plots for Accuracy
+```{r Boxplot_PNacc, warning=F, message=F, echo=F} 
+# Create average and SD accuracy per participant (aggregate by participant)
+PN_acc <- PN_all %>%
+  group_by(Task.Name,ID) %>%
+  dplyr::summarise(mean_Acc = mean(Acc, na.rm=T),
+            sd_Acc = sd(Acc, na.rm = T),
+            Age.Category = Age.Category[1])
+
+# Boxplot for Accuracy
+
+# png(file="./Figures and Tables/Boxplot_PNacc.png",
+# width=600, height=350)
+
+(Boxplot_PNacc <- ggplot(PN_acc, aes(x=Task.Name, y=mean_Acc, fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50") +
+    stat_summary(aes(label=round(..y..,2), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=4,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+  ylim(0.80, 1) +
+    labs(x = "Type of Task",
+         y = "Mean Accuracy (proportional)",
+         title = "Accuracy Boxplot per Age Group for Object and Action Naming")+
+    scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+
+```{r Barplot_PNacc, warning=F, message=F}
+# Barplot for Accuracy
+
+# png(file="./Figures and Tables/Barplot_PNacc.png",
+# width=600, height=350)
+
+(Barplot_PNacc <-ggplot(PN_all, aes(x=Task.Name, y=Acc, fill=as.factor(Age.Category))) +
+  stat_summary(geom="bar", fun=mean, position="dodge", colour="black") +
+  geom_errorbar(stat="summary", fun.data = mean_sdl, fun.args = list(mult=1),  
+                width=0.4, position=position_dodge(0.9), colour="grey50") +
+  coord_cartesian(ylim = c(0,1.15)) +
+  scale_y_continuous(labels = scales::label_percent(accuracy = 1L), minor_breaks = seq(0,1,0.1),
+                     breaks = seq(0,1,.1)) +
+  labs(title = "Accuracy for Picture Naming",
+       x="Type of Task",
+       y="Accuracy (% +/- S.D.)") +
+     scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old"))+
+  theme_grey())
+
+# dev.off()
+```
+
+
+## Statistical Analysis
+
+### Generalised Linear Mixed Models - Action naming
+
+```{r}
+# Only include trials for action naming (i.e., type==1)
+PNactions_Acc <- PN_all %>%
+  dplyr::filter(type==1)
+  # Check
+    # unique(PNactions_Acc$Task.Name) #actions
+```
+
+*Should we include random effects for ID and Trial.Number?*
+
+```{r}
+#Base model with Accuracy as outcome variable. Family binomial.
+Mbase_act <- glm(Acc ~ 1, family = "binomial", data=PNactions_Acc)
+
+#Base model with only ID/individual variability as random effect
+Mrandom.ID_act <- glmer(Acc ~ 1 +(1|ID) , family = binomial(link="cloglog"), control=glmerControl(optimizer = "bobyqa"), data=PNactions_Acc)
+#Base model with only Trial.Number/trial variability as random effect
+Mrandom.Trial_act <- glmer(Acc ~ 1 +(1|Trial.Number), family = binomial(link="cloglog"), data=PNactions_Acc)
+#Base model with both random effects
+Mrandom.All_act <- glmer(Acc ~ 1 +(1|ID) + (1|Trial.Number), family = binomial(link="cloglog"), data=PNactions_Acc)
+```
+
+AIC base model
+```{r}
+#Obtain AIC values for each model
+(AIC.base <- AIC(logLik(Mbase_act)))
+```
+AIC - only ID as random effect
+```{r}
+(AIC.reID <- AIC(logLik(Mrandom.ID_act)))
+```
+AIC - only trial as random effect
+```{r}
+(AIC.reTrial <- AIC(logLik(Mrandom.Trial_act)))
+```
+AIC - both ID and trial as random effect
+```{r}
+(AIC.reBoth <- AIC(logLik(Mrandom.All_act)))
+```
+
+The AIC for the model including both random effects is lowest --> we justified inclusion of both Trial and Subject as random effects.
+
+*Null model of accuracy for action naming with random effects included*
+cloglog was used because accuracy is a binomial variable with a highly skewed distribution (i.e., more 1's than 0's)
+```{r} 
+M0_PNactAcc <- lme4::glmer(Acc ~ 1 +(1|ID) + (1|Trial.Number), data=PNactions_Acc, family=binomial(link = "cloglog")) 
+summary(M0_PNactAcc)
+```
+*Unconditional model, i.e., the model without covariates/control measures*
+
+```{r}
+Muncond_PNactAcc <- glmer(Acc ~ Age.Category*CR.composite.before + (1|ID)  + (1|Trial.Number), data=PNactions_Acc, family = binomial(link="cloglog"))
+```
+
+*Full model, i.e., model with covariates/control measures. RT not log-transformed*
+
+```{r}
+Mfull_PNactAcc <- lme4::glmer(Acc ~ Age.Category*CR.composite.before + zSoP.comp + zWM.Score + zStroop.SRC + (1|ID)  + (1|Trial.Number), data=PNactions_Acc, family = binomial(link="cloglog"))
+```
+
+### Check model convergence problems
+```{r}
+# Check for singularity issues (often indicates overfitting of the model)
+tt <- getME(Mfull_PNactAcc,"theta")
+ll <- getME(Mfull_PNactAcc,"lower")
+min(tt[ll==0]) 
+```
+Value = ~ .16 so singularity seems not to be the problem
+
+```{r}
+# Restart the model from previous fit
+ss <- getME(Mfull_PNactAcc,c("theta","fixef"))
+
+Mfull2_PNactAcc <- update(Mfull_PNactAcc, control=glmerControl(optCtrl=list(maxfun=2e4)), start=ss)
+summary(Mfull2_PNactAcc) 
+```
+Warnings are gone so we proceed with this model (model restarted from previous fit, with max num of iterations set to 20000)
+
+#### Checking Assumptions GLMER Actions
+
+*The chosen link function is appropriate*
+
+```{r, warning=TRUE, echo=FALSE}
+
+Mfull2_PNactAcc_logit <- update(Mfull_PNactAcc, family = binomial(link="logit"), control=glmerControl(optCtrl=list(maxfun=2e4)), start=ss)
+# summary(Mfull2_PNactAcc_logit)
+
+AIC(Mfull2_PNactAcc) #2768.762
+AIC(Mfull2_PNactAcc_logit) #2775.982
+```
+
+The logit link resulted in convergence errors. Hence, we chose for the cloglog link as it resulted in a better model fit + it's a better link for highly skewed binomial distributions.
+In addition, the AIC value of the fitted model with the cloglog link is (slightly) lower than that of the logit one. The lower, the better fit the model.
+
+*Appropriate estimation of variance* (i.e. no over- or underdispersion)
+
+```{r, include=F}
+# Create a function to calculate the overdispersion of the full model
+overdisp_fun <- function(model) {
+     rdf <- df.residual(model)
+     rp <- residuals(model,type="pearson")
+     Pearson.chisq <- sum(rp^2)
+     prat <- Pearson.chisq/rdf
+     pval <- pchisq(Pearson.chisq, df=rdf, lower.tail=FALSE)
+     c(chisq=Pearson.chisq,ratio=prat,rdf=rdf,p=pval)
+}
+
+overdisp_fun(Mfull2_PNactAcc)
+```
+Non-significant p-value so it seems to be ok to approach with this model.
+
+Using a more formal test with the DHARMa package, which is based on simulations:
+
+```{r PNactAcc_overdispersion}
+sim_Mfull2_PNactAcc <- simulateResiduals(fittedModel = Mfull2_PNactAcc)
+
+testDispersion(simulationOutput = sim_Mfull2_PNactAcc, alternative = "greater", plot = TRUE) # "less" to indicate we're testing for underdispersion
+
+```
+
+According to this method, there is no under- or overdispersion (value close to 1; 1.0564). In general, glmers with binomial data seem to be under-/overdispersed often but this model fit seems to be ok. (non-significant p-value)
+
+
+*Checking variance explained by random factors:*
+
+```{r}
+0.02412/(0.02412+0.13467) #~15.2% of variance that's left over after the variance explained by our predictor variables is explained by ID (i.e. subject)
+
+0.13467/(0.02412+0.13467) #~84.8% of variance that's left over after the variance explained by our predictor variables is explained by trial (i.e. stimuli)
+```
+
+
+### Model comparison Acc action naming
+
+```{r}
+#Quick overview full model outcome
+broom.mixed::glance(M0_PNactAcc)
+broom.mixed::glance(Mfull2_PNactAcc)
+#AIC null model = 2771.056; AIC full model = 2768.112 --> the full model fits the data slightly better than the null model
+
+#Tidy model summary
+(tidyMfull2_PNactAcc <- broom.mixed::tidy(Mfull2_PNactAcc, effects = "fixed", conf.int=T, conf.level=0.95))
+
+## Write tidy table to .csv file
+# write.csv(tidyMfull2_PNactAcc, "./Figures and Tables/PNactAcc_glmerFull.csv", row.names = F)
+```
+
+*Concordance and Somer's D to assess predictive performance of the model*
+
+```{r}
+# Calculate probability of fitted effects full model
+probs.PNactAcc = binomial()$linkinv(fitted(Mfull2_PNactAcc))
+# Calculate Concordance Somer's D
+somers2(probs.PNactAcc, as.numeric(PNactions_Acc$Acc))
+```
+
+Concordance = .824 -->  When C takes the value 0.5, the predictions are random, when it is 1, prediction is perfect. A value above 0.8 indicates that the model may have some real predictive capacity (Baayen 2008, 204).
+Somer's D = .648 --> Predicted probabilities and observed responses ranges between 0 (randomness) and 1 (perfect prediction). The value should be higher than .5 for the model to be meaningful (Baayen, 2008; p.204)
+
+The larger the values, the better the predictive performance of the model. The values for Concordance and Somer's D seem to indicate that the model has some meaningful predictive power.
+
+*Effect Size - R squared*
+
+```{r}
+MuMIn::r.squaredGLMM(object = Mfull2_PNactAcc, null=Mrandom.All_act)
+``` 
+Marginal R2(R2m) is the variance explained by fixed effects. Conditional R2 (R2c) is the variance explained by the whole model. Theoretical is for binomial distributions.
+
+0.85% of the variance in the data is explained by the fixed effects only. 9.6% of the variance is explained by the whole model.
+
+From: https://www.investopedia.com/terms/r/r-squared.asp
+R-squared will give you an estimate of the relationship between movements of a dependent variable based on an independent variable's movements. It doesn't tell you whether your chosen model is good or bad, nor will it tell you whether the data and predictions are biased. A high or low R-square isn't necessarily good or bad, as it doesn't convey the reliability of the model, nor whether you've chosen the right regression. You can get a low R-squared for a good model, or a high R-square for a poorly fitted model, and vice versa.
+
+### Generalised Linear Mixed Models - Object naming
+
+```{r}
+PNobjects_Acc <- PN_all %>%
+  # Only include trials for object naming (i.e., type==2)
+  dplyr::filter(type==2)
+  # Check
+    # unique(PNobjects_Acc$Task.Name) #objects
+```
+
+*Should we include random effects for ID and Trial.Number?*
+
+```{r}
+#Base model with Accuracy as outcome variable. Family = binomial
+Mbase_obj <- glm(Acc ~ 1, family = "binomial", data=PNobjects_Acc)
+
+#Base model with only ID/individual variability as random effect
+Mrandom.ID_obj <- glmer(Acc ~ 1 +(1|ID) , family = binomial(link="cloglog"), control=glmerControl(optimizer = "bobyqa"), data=PNobjects_Acc)
+#Base model with only Trial.Number/trial variability as random effect
+Mrandom.Trial_obj <- glmer(Acc ~ 1 +(1|Trial.Number), family = binomial(link="cloglog"), control=glmerControl(optimizer = "bobyqa"), data=PNobjects_Acc)
+#Base model with both random effects
+Mrandom.All_obj <- glmer(Acc ~ 1 +(1|ID) + (1|Trial.Number), family = binomial(link="cloglog"), data=PNobjects_Acc)
+```
+AIC base model
+```{r}
+#Obtain AIC values for each model
+(AIC.base_obj <- AIC(logLik(Mbase_obj)))
+```
+AIC - only ID as random effect
+```{r}
+(AIC.reID_obj <- AIC(logLik(Mrandom.ID_obj)))
+```
+AIC - only trial as random effect
+```{r}
+(AIC.reTrial_obj <- AIC(logLik(Mrandom.Trial_obj)))
+```
+AIC - both ID and trial as random effect
+```{r}
+(AIC.reBoth_obj <- AIC(logLik(Mrandom.All_obj)))
+```
+
+The AIC for the model including both random effects is lowest --> we justified inclusion of both Trial and Subject as random effects.
+
+*Null model of reaction times for object naming with random effects included*
+
+```{r}
+# Null model
+M0_PNobjAcc <- lme4::glmer(Acc ~ 1 +(1|ID) + (1|Trial.Number), data=PNobjects_Acc, family=binomial(link = "cloglog"))
+summary(M0_PNobjAcc)
+```
+*Unconditional model, i.e., the model without covariates/control measures*
+
+```{r}
+#Model without covariates
+Muncond_PNobjAcc <- glmer(Acc ~ Age.Category*CR.composite.before + (1|ID)  + (1|Trial.Number), data=PNobjects_Acc, family=binomial(link = "cloglog"))
+```
+
+*Full model, i.e., model with covariates/control measures*
+
+```{r}
+Mfull_PNobjAcc <- lme4::glmer(Acc ~ Age.Category*CR.composite.before + zSoP.comp + zWM.Score + zStroop.SRC + (1|ID)  + (1|Trial.Number), data=PNobjects_Acc, family = binomial(link="cloglog"))
+# summary(Mfull_PNobjAcc)
+```
+
+### Check model convergence problems
+
+```{r}
+# Checking for singularity problems
+tt <- getME(Mfull_PNobjAcc,"theta")
+ll <- getME(Mfull_PNobjAcc,"lower")
+min(tt[ll==0]) 
+```
+Value = ~ .12 so singularity seems not to be problem
+
+```{r}
+# Restart from previous fit
+ss_obj <- getME(Mfull_PNobjAcc,c("theta","fixef"))
+
+Mfull2_PNobjAcc <- update(Mfull_PNobjAcc, control=glmerControl(optCtrl=list(maxfun=2e4)), start=ss_obj)
+# summary(Mfull2_PNobjAcc) #Warnings gone
+
+##Create a tidy output table for the fixed effects
+(tidyMfull_PNobjacc <- broom.mixed::tidy(Mfull2_PNobjAcc, effect = "fixed",conf.int=T, conf.level=0.95))
+```
+Warnings are gone so we proceed with this model (model restarted from previous fit, with max num of iterations set to 20000)
+
+### Checking Assumptions GLMER
+
+*The chosen link function is appropriate*
+
+```{r, warning=TRUE, echo=FALSE}
+Mfull2_PNobjAcc_logit <- update(Mfull_PNobjAcc, family = binomial(link="logit"), control=glmerControl(optCtrl=list(maxfun=2e4)), start=ss)
+# summary(Mfull2_PNobjAcc_logit)
+
+AIC(Mfull2_PNobjAcc) #1027.17
+AIC(Mfull2_PNobjAcc_logit) #1023.53
+```
+
+The logit link resulted in convergence errors. Hence, we chose for the cloglog link as it resulted in a better model fit + it's a better link for highly skewed binomial distributions.
+
+*Appropriate estimation of variance* (i.e. no over- or underdispersion)
+
+```{r}
+# Function to calculate overdispersion of residuals
+overdisp_fun <- function(model) {
+     rdf <- df.residual(model)
+     rp <- residuals(model,type="pearson")
+     Pearson.chisq <- sum(rp^2)
+     prat <- Pearson.chisq/rdf
+     pval <- pchisq(Pearson.chisq, df=rdf, lower.tail=FALSE)
+     c(chisq=Pearson.chisq,ratio=prat,rdf=rdf,p=pval)
+}
+
+overdisp_fun(Mfull2_PNobjAcc)
+```
+P value is non-significant so we don't assume overdispersion
+
+Using a more formal test with the DHARMa package, which is based on simulations:
+
+```{r PNobjAcc_overdispersion}
+sim_Mfull2_PNobjAcc <- simulateResiduals(fittedModel = Mfull2_PNobjAcc)
+
+testDispersion(simulationOutput = sim_Mfull2_PNobjAcc,  plot = TRUE) #two sided (both under- and over dispersion)
+```
+
+According to this method, there is no over- or underdispersion (value close to 1; 1.0822). This model fit seems to be ok.
+
+*Checking variance explained by random factors:*
+
+```{r}
+0.01453/(0.01453+0.09485) #~13.3% of variance that's left over after the variance explained by our predictor variables is explained by ID (i.e. subject)
+
+0.09485/(0.01453+0.09485) #~86.7% of variance that's left over after the variance explained by our predictor variables is explained by trial (i.e. stimuli)
+```
+
+### Model comparison Acc object naming
+
+```{r}
+#Quick overview full model outcome
+broom.mixed::glance(M0_PNobjAcc) #AIC null model = 1033.103	
+broom.mixed::glance(Mfull2_PNobjAcc) #AIC full model = 1027.17
+# The full model fits the data better than the null model
+
+#Tidy model summary
+(tidyMfull2_PNobjAcc <- broom.mixed::tidy(Mfull2_PNobjAcc, effects = "fixed", conf.int=T, conf.level=0.95))
+
+## Write tidy table to .csv file
+# write.csv(tidyMfull2_PNobjAcc, "./Figures and Tables/PNobjAcc_glmerFull.csv", row.names = F)
+```
+
+*Concordance and Somer's D to assess predictive performance of the model*
+
+```{r}
+# Calculate probability of fitted effects full model
+probs.PNobjAcc = binomial()$linkinv(fitted(Mfull2_PNobjAcc))
+# Calculate Concordance Somer's D
+somers2(probs.PNobjAcc, as.numeric(PNobjects_Acc$Acc))
+```
+Concordance = .882 -->  When C takes the value 0.5, the predictions are random, when it is 1, prediction is perfect. A value above 0.8 indicates that the model may have some real predictive capacity (Baayen 2008, 204).
+Somer's D = .764 --> Predicted probabilities and observed responses ranges between 0 (randomness) and 1 (perfect prediction). The value should be higher than .5 for the model to be meaningful (Baayen, 2008; p.204)
+
+The larger the values, the better the predictive performance of the model. 
+
+
+*Effect Size - R squared*
+
+```{r}
+MuMIn::r.squaredGLMM(object = Mfull2_PNobjAcc, null=Mrandom.All_obj)
+``` 
+Marginal R2 is the variance explained by fixed effects. Conditional R2 is the variance explained by the whole model. Theoretical is for binomial distributions.
+
+1.34% of the variance in the data is explained by the fixed effects only. 7.5% of the variance is explained by the whole model.
+
+## Visualising significant predictors
+
+```{r, warning = F}
+#Create labels for legend per age group
+Ages = as_labeller(c(`1`="Younger", `2`="Middle-Aged", `3`="Older"))
+
+#Colour Palette - colourblind friendly
+cbbPalette <- c("#999999", "#E69F00", "#56B4E9")
+```
+
+```{r PNactAcc_CR_corplot, warning = F, message=F}
+# Create means per participant for Acc and CR Action Naming
+meanAcc_act <- PNactions_Acc %>%
+  group_by(Age.Category, ID) %>%
+  summarise(meanAcc = mean(Acc, na.rm=T),
+            CR = mean(CR.composite.before))
+
+# png(file="./Figures and Tables/RelationCR-PNactAcc.png",
+# width=600, height=350)
+
+#Relationship Acc and CR pre-pandemic of picture naming Actions
+(plot.PNactACC_CR <- ggplot(meanAcc_act, aes(x=CR, y=meanAcc, colour=as.factor(Age.Category))) +
+    geom_point(width = 0.25, size=1.8, show.legend = F) +
+   geom_smooth(method = "glm", formula = y~x, fill="grey", colour="black", show.legend = F) +
+   labs(x = "CR score before Covid-19 (z-distribution)",
+        y= "Accuracy (proportionate)",
+        title = "Relationship between CR pre-COVID-19 and Action Naming Accuracy") +
+   scale_x_continuous(breaks = seq(-3, 3, 1)) +
+   facet_grid(~Age.Category, labeller=labeller(Age.Category=Ages)) +   
+    theme(text = element_text(size = 14),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+         scale_colour_manual(values = cbbPalette))
+
+# dev.off()
+```
+
+```{r PNobjAcc_CR_corplot, warning = F}
+# Create means per participant for Acc and CR Object Naming
+meanAcc_obj <- PNobjects_Acc %>%
+  group_by(Age.Category, ID) %>%
+  summarise(meanAcc = mean(Acc, na.rm=T),
+            CR = mean(CR.composite.before))
+
+# png(file="./Figures and Tables/RelationCR-PNobjAcc.png",
+# width=600, height=350)
+
+#Relationship Acc and CR pre-pandemic of picture naming Objects
+(plot.PNobjACC_CR <- ggplot(meanAcc_obj, aes(x=CR, y=meanAcc, colour=as.factor(Age.Category))) +
+   geom_point(width = 0.25, size=1.8, show.legend = F) +
+   geom_smooth(method = "glm", formula = y~x, fill="grey", colour="black", show.legend = F) +
+   labs(x = "CR score before Covid-19 (z-distribution)",
+        y= "Accuracy (proportionate)",
+        title = "Relationship between CR before Covid-19 and Object Naming Accuracy") +
+   coord_cartesian(ylim = c(0.8,1)) +
+   facet_grid(~Age.Category, labeller=labeller(Age.Category=Ages))+
+        theme(text = element_text(size = 14),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+         scale_colour_manual(values = cbbPalette))
+
+
+# dev.off()
+```
+
+### Model comparisons for the CR measure preciding and coinciding with the COVID-19 pandemic
+
+The effect of the COVID-19 pandemic on CR and subsequent behavioural performance
+```{r}
+# Action Naming
+Mfull_PNactAcc.during <- lme4::glmer(Acc ~ Age.Category*CR.composite.during + zSoP.comp + zWM.Score + zStroop.SRC + (1|ID)  + (1|Trial.Number), data=PNactions_Acc, family = binomial(link="cloglog"))
+```
+No convergence errors (as opposed to the model with the CR before composite score). To be able to compare the models better, we will restart the model as done with the model that has the CR composite before as predictor
+
+tt.during <- getME(Mfull_PNactAcc.during,"theta")
+ll.during <- getME(Mfull_PNactAcc.during,"lower")
+min(tt.during[ll==0]) # ~ .174 so singularity is not a problems
+
+```{r}
+# Restart from previous fit
+ss_act.during <- getME(Mfull_PNactAcc.during,c("theta","fixef"))
+
+Mfull2_PNactAcc.during <- update(Mfull_PNactAcc.during, control=glmerControl(optCtrl=list(maxfun=2e4)), start=ss_act.during) #convergence errors
+```
+
+The significant predictive effect of CR has disappeared. That is, the CR composite during Covid does not significantly predict Accuracy for Action naming
+
+```{r}
+#Comparing the models
+anova(Mfull2_PNactAcc, Mfull2_PNactAcc.during)
+```
+
+There are barely any differences between the two models. The AIC is a tiny bit lower for the CR composite score before the pandemic, meaning that that model fits the data slightly better. This model is also the one with the significant effect of CR.
+
+```{r}
+# Object Naming
+Mfull_PNobjAcc.during <- lme4::glmer(Acc ~ Age.Category*CR.composite.during + zSoP.comp + zWM.Score + zStroop.SRC + (1|ID)  + (1|Trial.Number), data=PNobjects_Acc, family = binomial(link="cloglog")) #convergence errors
+```
+
+```{r}
+tt.during <- getME(Mfull_PNobjAcc.during,"theta")
+ll.during <- getME(Mfull_PNobjAcc.during,"lower")
+min(tt.during[ll==0]) # ~ .443 so singularity is not a problems
+
+# Restart from previous fit
+ss_obj.during <- getME(Mfull_PNobjAcc.during,c("theta","fixef"))
+
+Mfull2_PNobjAcc.during <- update(Mfull_PNobjAcc.during, control=glmerControl(optCtrl=list(maxfun=2e4)), start=ss_obj.during)
+```
+Again convergence errors. Let's try different optimizer.
+```{r}
+Mfull3_PNobjAcc.during <- update(Mfull2_PNobjAcc.during, control=glmerControl(optimizer = "bobyqa"))
+# summary(Mfull3_PNobjAcc.during)
+```
+Warnings are gone
+
+```{r}
+anova(Mfull2_PNobjAcc, Mfull3_PNobjAcc.during)
+```
+
+There are barely any differences between the two models. The AIC is a bit lower for the CR composite score before the pandemic, meaning that that model fits the data slightly better. In the model with CR during, the interaction term between CR score and being a middle-aged adult has also disappeared.
+
+## References
+
+```{r, include=F, echo=FALSE}
+knitr::write_bib(.packages(), "packages.bib")
+```
+
+---
+nocite: '@*'
+---
