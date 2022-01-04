@@ -1,4 +1,4 @@
-# GBG-Online-Study
+# Getting the Brain into Gear-Online-Study
 
 This GitHub repository contains the R code used to analyse the data of the study 
 
