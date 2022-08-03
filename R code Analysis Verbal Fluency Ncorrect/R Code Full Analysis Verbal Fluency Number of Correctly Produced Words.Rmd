@@ -1,0 +1,952 @@
+---
+title: "R Code Full Analysis Verbal Fluency Number of Correctly Produced Words"
+author: "Elise Oosterhuis"
+date: "Last compiled on `r format(Sys.time(), '%d/%m/%y')`"
+output: rmarkdown::pdf_document
+bibliography: ["packages.bib"]
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  fig.path = "GBGon_VFNcorrect_figs/VFNcorrect_figs_"
+)
+knitr::opts_knit$set(root.dir = '../R code Analysis Verbal Fluency Ncorrect') 
+library(formatR)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+# Analysis Verbal Fluency Data - Number of Correctly Produced Words
+
+```{r, include=FALSE, message=F, warning=F, echo=F}
+############ VF DATA EXTRACTION AND TIDYING SCRIPT #######################
+requiredPackages = c('dplyr','tidyr','purrr', 'rio', 'tibble', 'fs', 'e1071',
+                     'stringr', 'tidyverse', 'readxl', 'performance',
+                     'lattice', 'broom', 'car', 'olsrr', 'corrplot', 'emmeans')
+for(p in requiredPackages){
+  if(!require(p,character.only = TRUE)) install.packages(p)
+  library(p,character.only = TRUE)
+}
+
+#  Clean Environment
+rm(list=ls())
+
+#  Obtain data + set working and output directory
+date = format(Sys.Date(), "%d%m%Y")
+confPalette <- c("#4B3B40", "#960200", "#CCB216")
+
+```
+
+##### Read in data
+
+```{r}
+##Semantic Fluency
+VFcat <- read.csv("../Data/Tidy/VFcat_complete_final.csv")
+# head(VFcat[1:6,1:11]) #shows top 6 rows and the 1st to 11th column.
+# tail(VFcat[1:6,1:11]) #shows bottom 6 rows and the 1st to 11th column.
+
+##Letter Fluency
+VFlet <- read.csv("../Data/Tidy/VFlet_complete_final.csv")
+# head(VFlet[1:6,1:9])
+# tail(VFlet[1:6,1:9])
+
+##Action Fluency
+VFact <- read.csv("../Data/Tidy/VFact_complete_final.csv")
+# head(VFact[1:6,1:8])
+# tail(VFact[1:6,1:8])
+```
+
+## Verbal Fluency - Semantic/Categories
+
+### Descriptive Statistics
+
+```{r}
+## Create dataset that only includes data of the Number of Correct words Produced
+VFcat_Ncorrect <- VFcat %>%
+  dplyr::filter(Measures=="Ncorrect") %>%
+  dplyr::select(-Measures) %>%
+      #Recode age groups
+  dplyr::mutate(Age.Category=as.factor(dplyr::recode(Age.Category, '18 to 30 years old'="Younger",
+                                    '40 to 55 years old'="Middle-Aged",
+                                    '65 to 80 years old'="Older"))) %>%
+  #Use the z scores to filter out outliers (i.e., exclude values +/-2.5 SD per trial )
+  filter(between(zComp.Cat, -2.5, +2.5)) %>% #No outliers
+  ungroup()
+
+# head(VFcat_Ncorrect_coded, L=6)
+```
+
+```{r, message=F, warning=F}
+#Summarise data to present descriptives in a table
+(Descr_VFcat <- VFcat_Ncorrect %>%
+#Per Age Group
+  group_by(Age.Category) %>%
+  summarise(Nppt = length(unique(ID)), #Number of participants
+            total = round(mean(Total, na.rm=T),2),
+            sdtotal = round(sd(Total, na.rm=T),2),#Total words correctly produced
+            # ztotal = mean(zComp.Cat, na.rm=T), #Z-score per age group of total words correctly produced
+            animals = round(mean(Animals, na.rm=T),2), #Total words correctly produced in category Animals
+            vehicles = round(mean(Vehicles, na.rm=T),2), #Total words correctly produced in category vehicles
+            vandF = round(mean(Fruits.and.Vegetables, na.rm=T),2), #Total words correctly produced in category Fruits and Vegetables
+            fluid = round(mean(Fluid, na.rm=T),2), #Total words correctly produced in category fluid
+            writing = round(mean(Writing.Utensils, na.rm=T),2))) #Total words correctly produced in category writing utensils
+
+#Save table
+# write.csv(Descr_VFcat, "./Figures and Tables/Descr_VFcat_Ncorrect_coded.csv", row.names = F)
+```
+```{r hist_VFcat_zScores}
+#z-distribution of composite score for semantic fluency
+hist(VFcat_Ncorrect$zComp.Cat, breaks=20) #Composite z-score of Semantic Fluency
+```
+
+#### Visualisation Ncorrect Semantic Fluency
+
+```{r Boxplot_VFcatNcorr_zPerCategory, warning=F} 
+## Convert wide to long format for visualisation of data
+VFcat_Ncorrect.longz.scores <- VFcat_Ncorrect %>%
+  pivot_longer(cols=zComp.Cat:zWriting, names_to = "zcategory", values_to = "zNcorrect")
+
+# Boxplot VF cat Ncorrect per category
+# png(file="./Figures and Tables/Boxplot_VFcatNcorrect_zscores.png",
+# width=600, height=350) #writes boxplot below to a .png file
+
+(Boxplot_VF <- VFcat_Ncorrect.longz.scores %>%
+    dplyr::filter(zcategory!="zComp.Cat") %>%
+    ggplot(aes(x=factor(zcategory, levels=c("zAnimals", "zVehicles", "zFandV", "zFluid", "zWriting")), y=zNcorrect, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+      stat_summary(fun = "mean", position = position_dodge(.75),
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Category",
+         y = "Ncorrect (z scores)",
+         title = "Number of Correctly Produced Words per Age Group and Category")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off() #close png() function
+```
+```{r Boxplot_VFcatNcorr_zTotal, warning=F}
+# Boxplot VF cat N correct for total score
+# png(file="./Figures and Tables/Boxplot_VFcatNcorrect_RawTotal_zscores.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFcat_Ncorrect.longz.scores %>%
+    dplyr::filter(zcategory=="zComp.Cat") %>%
+    ggplot(aes(x=zcategory, y=zNcorrect,fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+      stat_summary(fun = "mean", position = position_dodge(.75),
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Category",
+         y = "Ncorrect (z scores)",
+         title = "Total Number of Correctly Produced Words for All Categories per Age Group")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+## Multiple Linear Regression - Semantic Fluency
+
+*Create user-defined contrasts for the Age Category variable*
+
+```{r}
+VFcat_Ncorrect <- mutate(VFcat_Ncorrect,
+                    Age.Category = 
+                      factor(Age.Category, levels = c("Middle-Aged", "Younger", "Older")))
+
+VFcat_Ncorrect_coded <- VFcat_Ncorrect
+contrasts(VFcat_Ncorrect_coded$Age.Category) <- contr.helmert(3)
+contrasts(VFcat_Ncorrect_coded$Age.Category)
+
+```
+
+*Unconditional model, i.e. without covariates*
+```{r}
+lmUncond.VFcat.Ncorrect <- lm(zComp.Cat ~ Age.Category*CR.composite.before, data = VFcat_Ncorrect_coded)
+# broom::tidy(lmUncond.VFcat.Ncorrect, conf.int=T)
+```
+
+*Full model including the covariates; outcome variable in z-distribution*
+```{r}
+lmFull.VFcat.Ncorrect <- lm(zComp.Cat ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFcat_Ncorrect_coded)
+summary(lmFull.VFcat.Ncorrect)
+#Tidy table output
+(tidylmFull.VFcat.Ncorrect <- broom::tidy(lmFull.VFcat.Ncorrect, conf.int=T)%>%
+  mutate_if(is.numeric, round, 3))
+
+# write.csv(tidylmFull.VFcat.Ncorrect, "./Figures and tables/VFcat_zNcorrect_lmFull.csv", row.names = F) #write tidy output table to file
+```
+
+```{r, message=F}
+#Look at pairwise comparisons between contrasts
+lmFull.VFcat.Ncorrect.emmeans <- emmeans::emtrends(lmFull.VFcat.Ncorrect, ~Age.Category, var= "CR.composite.before")
+pairs(lmFull.VFcat.Ncorrect.emmeans)
+```
+
+*Full model including the covariates; outcome variable as raw score*
+```{r}
+lmFull.VFcat.Ncorrect.raw <- lm(Total ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFcat_Ncorrect_coded)
+#Tidy table output
+broom::tidy(lmFull.VFcat.Ncorrect.raw, conf.int=T)%>%
+  mutate_if(is.numeric, round, 3)
+```
+
+The model doesn't seem to predict the composite score (z-distribution) for Verbal Fluency Categories. However, the interaction between middle age (40-55 years) and CR before seems to show a small significance. Let's check the model assumptions + fit.
+
+*Assumption 1 - Linearity*
+
+```{r VFcatNcorrect_Linearity_LMunconditional}
+## Unconditional model with z composite score
+plot(lmUncond.VFcat.Ncorrect, 1, main = "Unconditional model")
+```
+```{r VFcatNcorrect_Linearity_LMzfull}
+## Full model with z composite score
+plot(lmFull.VFcat.Ncorrect, 1, main = "Full model (z-score composite score)")
+```
+```{r VFcatNcorrect_Linearity_LMrawfull}
+## Full model with raw total score
+plot(lmFull.VFcat.Ncorrect.raw, 1, main = "Full model (raw total score)")
+```
+
+
+For all models, the red line is mostly horizontal, meaning that there is a linear relationship between the fitted line and the residual value.
+
+*Assumption 2 - Independence of Variables*
+
+```{r corPredictors_VFcatNcorrect_zScores}
+# Z composite of VF cat
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFcat_Ncorrect_coded[,c(17,18)]), rownames="rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFcat_Ncorrect_coded[,c(17,18)]),method='circle')
+```
+```{r corPredictors_VFcatNcorrect_rawScores}
+## Raw scores
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFcat_Ncorrect_coded[,c(17,18)]), rownames = "rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFcat_Ncorrect_coded[,c(17,18)]))
+```
+
+There seems to be no strong relationship between the predictor variables. Hence, we can assume Independence of Variables.
+
+*Assumption 3 - Normal Distribution of Residuals*
+
+Full model with z composite score
+```{r VFcatNcorrect_Normality_zScores}
+plot(lmFull.VFcat.Ncorrect, 2, main = "Full model (z-score composite score)")
+```
+Full model with raw total score
+```{r VFcatNcorrect_Normality_rawScores}
+plot(lmFull.VFcat.Ncorrect.raw, 2, main = "Full model (raw total score)")
+```
+
+
+For all models, the points seem to roughly follow a straight line, except for some points on the left and the bulk on the right. Hence, other relationships/predictors that have not been included into the models could explain the variance. One explanation could be the online format of the study. For example, some participants might have scored lower than they would in a lab-based study, due to unclear instructions. Also, it could have caused more distractions than there would have been in a lab based study.
+
+*Assumption 4 - Homoscedasticity or Equal Variance of Variables*
+
+Full model with z composite score
+```{r VFcatNcorrect_Homoscedasticity_zScores}
+plot(lmFull.VFcat.Ncorrect, 3, main = "Full model (z-score composite score)")
+```
+
+Full model with raw total score
+```{r VFcatNcorrect_Homoscedasticity_rawScores}
+plot(lmFull.VFcat.Ncorrect.raw, 3, main = "Full model (raw total score)")
+```
+
+For all models, the variance of residuals seems relatively equal across the predictors. Hence, the error terms are relatively the same across all values of the independent variable for all three models.
+
+#### Model fit diagnostics
+
+*Variation Inflation Factor*
+
+Any VIF value above 4 needs further investigation. There seems to be no concerning signs of colinearity (VIF values higher than 4). The tolerance values indicate the percentage of variance that cannot be explained for by the other predictor variables.
+
+```{r}
+ols_vif_tol(lmFull.VFcat.Ncorrect)
+ols_vif_tol(lmFull.VFcat.Ncorrect.raw)
+```
+
+*Plot Diagnositcs Full model with z composite score for Semantic Fluency*
+
+```{r VFcatNcorrect_lmFull_zScores_diagnostics}
+ols_plot_diagnostics(lmFull.VFcat.Ncorrect)
+```
+
+*Plot Diagnositcs Full model with raw score for Semantic Fluency*
+
+```{r VFcatNcorrect_lmFull_raw_diagnostics}
+ols_plot_diagnostics(lmFull.VFcat.Ncorrect.raw)
+```
+
+For all models, the Observed vs Predicted Plot shows that the model doesn't fit the data very well (pity) --> due to outliers??
+
+### Model comparisons for the CR measure preciding and coinciding with the COVID-19 pandemic
+
+The effect of the COVID-19 pandemic on CR and subsequent behavioural performance
+
+```{r}
+lmFull.VFcat.Ncorrect.during <- lm(zComp.Cat ~ Age.Category*CR.composite.during + GenCogProc.composite, data = VFcat_Ncorrect_coded)
+summary(lmFull.VFcat.Ncorrect.during)
+```
+
+```{r}
+# Model comparisons
+anova(lmFull.VFcat.Ncorrect, lmFull.VFcat.Ncorrect.during)
+```
+No differences between the two models
+
+```{r}
+#Model comparisons through AIC values
+AIC(lmFull.VFcat.Ncorrect)
+AIC(lmFull.VFcat.Ncorrect.during)
+```
+
+The model with the composite score before Covid-19 seems to fit slightly better
+
+
+## Verbal Fluency - Letters
+
+### Descriptive Statistics
+
+```{r}
+## Create dataset that only includes data of the Number of Correct words Produced
+VFlet_Ncorrect <- VFlet %>%
+  dplyr::filter(Measures=="Ncorrect") %>%
+  dplyr::select(-Measures) %>%
+      #Recode age groups
+  dplyr::mutate(Age.Category=as.factor(dplyr::recode(Age.Category, '18 to 30 years old'="Younger",
+                                    '40 to 55 years old'="Middle-Aged",
+                                    '65 to 80 years old'="Older"))) %>%
+    #Use the z scores to filter out outliers (i.e., exclude values +/-2.5 SD per trial )
+  filter(between(zComp.Let, -2.5, +2.5)) %>% #No outliers
+  ungroup()
+
+# head(VFlet_Ncorrect_coded, L=6)
+```
+
+```{r, message=F, warning=F}
+#Summarise data to present descriptives in a table
+(Descr_VFlet <- VFlet_Ncorrect %>%
+  #Per Age Group
+  group_by(Age.Category) %>%
+  summarise(Nppt = length(unique(ID)),
+            total = round(mean(Total, na.rm=T),2),
+            sdtotal = round(sd(Total,na.rm=T),2),
+            # ztotal = mean(zComp.Let, na.rm=T),
+            letterM = round(mean(M, na.rm=T),2),
+            letterS = round(mean(S, na.rm=T),2),
+            letterP = round(mean(P, na.rm=T),2)))
+
+#Save table
+# write.csv(Descr_VFlet, "./Figures and Tables/Descr_VFlet_Ncorrect.csv", row.names = F)
+```
+
+```{r hist_VFLEt_zScores}
+hist(VFlet_Ncorrect$zComp.Let, breaks=20) #Composite z-score of Semantic Fluency
+```
+
+#### Visualisation Ncorrect Letter Fluency
+
+```{r Boxplot_VFlet_rawPerCategory, warning=F} 
+VFlet_Ncorrect.long <- VFlet_Ncorrect %>%
+  pivot_longer(cols=Total:S, names_to = "letter", values_to = "Ncorrect")
+
+# Boxplot VFlet Ncorrect
+# png(file="./Figures and Tables/Boxplot_VFletNcorrect.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFlet_Ncorrect.long %>%
+    dplyr::filter(letter!="Total") %>%
+    ggplot(aes(x=letter, y=Ncorrect, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    stat_summary(aes(label=round(..y..), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=4,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Letter",
+         y = "Ncorrect (raw scores)",
+         title = "Number of Correctly Produced Words per Age Group and Letter")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+```{r Boxplot_VFlet_rawTotal, warning=F}
+# Boxplot VFlet Ncorrect Raw Total
+# png(file="./Figures and Tables/Boxplot_VFletNcorrect_RawTotal.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFlet_Ncorrect.long %>%
+    dplyr::filter(letter=="Total") %>%
+    ggplot(aes(x=letter, y=Ncorrect,fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    # stat_summary(aes(label=round(..y..), group=as.factor(Age.Category)), 
+    #            fun=mean, geom = "label", size=4,
+    #            fill="white", show.legend=NA, label.size=NA,
+    #            position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Letter",
+         y = "Ncorrect (raw scores)",
+         title = "Total Number of Correctly Produced Words for All Letters per Age Group")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+
+*Figures Ncorrect Letter Fluency z-scores*
+
+```{r Boxplot_VFcat_zPerCategory, warning=F} 
+VFlet_Ncorrect.long.zScores <- VFlet_Ncorrect %>%
+  pivot_longer(cols=zComp.Let:zP, names_to = "zletter", values_to = "zNcorrect")
+
+# Boxplot VFlet Ncorrect
+# png(file="./Figures and Tables/Boxplot_VFletNcorrect_zscores.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFlet_Ncorrect.long.zScores %>%
+    dplyr::filter(zletter!="zComp.Let") %>%
+    ggplot(aes(x=zletter, y=zNcorrect, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    # stat_summary(aes(label=round(..y..), group=as.factor(Age.Category)), 
+    #            fun=mean, geom = "label", size=4,
+    #            fill="white", show.legend=NA, label.size=NA,
+    #            position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Letter",
+         y = "Ncorrect (z scores)",
+         title = "Number of Correctly Produced Words per Age Group and Letter")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+```{r Boxplot_VFcat_zTotaly, warning=F}
+# Boxplot VFlet Ncorrect Raw Total
+
+# png(file="./Figures and Tables/Boxplot_VFletNcorrect_Total_zscores.png",
+# width=600, height=350)
+
+
+(Boxplot_VF <- VFlet_Ncorrect.long.zScores %>%
+    dplyr::filter(zletter=="zComp.Let") %>%
+    ggplot(aes(x=zletter, y=zNcorrect,fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    # stat_summary(aes(label=round(..y..), group=as.factor(Age.Category)), 
+    #            fun=mean, geom = "label", size=4,
+    #            fill="white", show.legend=NA, label.size=NA,
+    #            position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Letter",
+         y = "Ncorrect (z scores)",
+         title = "Total Number of Correctly Produced Words for All Letters per Age Group")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+## Multiple Linear Regression - Letter Fluency
+
+*Create user-defined contrasts for the Age Category variable*
+
+```{r}
+VFlet_Ncorrect <- mutate(VFlet_Ncorrect,
+                    Age.Category = 
+                      factor(Age.Category, levels = c("Middle-Aged", "Younger", "Older")))
+
+VFlet_Ncorrect_coded <- VFlet_Ncorrect
+contrasts(VFlet_Ncorrect_coded$Age.Category) <- contr.helmert(3)
+contrasts(VFlet_Ncorrect_coded$Age.Category)
+
+```
+
+*Unconditional model, i.e. without covariates*
+
+```{r}
+lmUncond.VFlet.Ncorrect <- lm(zComp.Let ~ Age.Category*CR.composite.before, data = VFlet_Ncorrect_coded)
+# broom::tidy(lmUncond.VFlet.Ncorrect, conf.int=T)
+```
+
+*Full model including the covariates; outcome variable in z-distribution*
+```{r}
+lmFull.VFlet.Ncorrect <- lm(zComp.Let ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFlet_Ncorrect_coded)
+summary(lmFull.VFlet.Ncorrect)
+#Tidy table output
+(tidylmFull.VFlet.Ncorrect <- broom::tidy(lmFull.VFlet.Ncorrect, conf.int=T)%>%
+  mutate_if(is.numeric, round, 3))
+
+# write.csv(tidylmFull.VFlet.Ncorrect, "./Figures and Tables/VFlet_zNcorrect_lmFull.csv")
+```
+*Full model including the covariates; outcome variable as raw score*
+```{r}
+lmFull.VFlet.Ncorrect.raw <- lm(Total ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFlet_Ncorrect_coded)
+
+#Tidy table output
+broom::tidy(lmFull.VFlet.Ncorrect.raw, conf.int=T)%>%
+  mutate_if(is.numeric, round, 3)
+```
+The model doesn't seem to predict the composite score (z-distribution) or raw Total score for Verbal Fluency Letter. Let's check the model assumptions + fit.
+
+*Assumption 1 - Linearity*
+
+```{r VFcat_Linearity_LMunconditional}
+## Unconditional model with z composite score
+plot(lmUncond.VFlet.Ncorrect, 1, main = "Unconditional model")
+```
+```{r VFlet_Linearity_LMzfull}
+## Full model with z composite score
+plot(lmFull.VFlet.Ncorrect, 1, main = "Full model (z-score composite score)")
+```
+```{r VFlet_Linearity_LMrawfull}
+## Full model with raw total score
+plot(lmFull.VFlet.Ncorrect.raw, 1, main = "Full model (raw total score)")
+```
+
+
+For all models, the red line is mostly horizontal, meaning that there is a linear relationship between the fitted line and the residual value.
+
+*Assumption 2 - Independence of Variables*
+
+```{r corPredictors_VFlet_zScores}
+# Z composite of VF cat
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFlet_Ncorrect_coded[,c(13,14)]), rownames="rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFlet_Ncorrect_coded[,c(13,14)]),method='circle')
+```
+```{r corPredictors_VFlett_rawScores}
+## Raw scores
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFlet_Ncorrect_coded[,c(13,14)]), rownames = "rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFlet_Ncorrect_coded[,c(13,14)]))
+
+```
+
+There seems to be no strong relationship between the predictor variables. Hence, we can assume Independence of Variables.
+
+*Assumption 3 - Normal Distribution of Residuals*
+
+Full model with z composite score
+```{r VFlet_Normality_zScores}
+plot(lmFull.VFlet.Ncorrect, 2, main = "Full model (z-score composite score)")
+```
+Full model with raw total score
+```{r VFlet_Normality_rawScores}
+plot(lmFull.VFlet.Ncorrect.raw, 2, main = "Full model (raw total score)")
+```
+
+For all models, the points seem to roughly follow a straight line, except for a few points on the left and right. Hence, other relationships/predictors that have not been included into the models could explain the variance. This could be caused by outliers in the data.
+
+*Assumption 4 - Homoscedasticity or Equal Variance of Variables*
+
+Full model with z composite score
+```{r VFlet_Homoscedasticity_zScores}
+plot(lmFull.VFlet.Ncorrect, 3, main = "Full model (z-score composite score)")
+```
+
+Full model with raw total score
+```{r VFlet_Homoscedasticity_rawScores}
+plot(lmFull.VFlet.Ncorrect.raw, 3, main = "Full model (raw total score)")
+```
+For the unconditional model, the variance of residuals seems relatively equal across the predictors. Hence, the error terms are relatively the same across all values of the independent variable for this model. However, the variance of residuals doesn't seem quite equally distributed across the predictors. So, for the full models (z-score and raw score), the spread is not entirely constant, hence, the error terms does not appear to be the same across all values of the outcome variable.
+
+#### Model fit diagnostics
+
+*Variation Inflation Factor*
+
+Any VIF value above 4 needs further investigation. There seems to be no concerning signs of collinearity (VIF values higher than 4). The tolerance values indicate the percentage of variance that cannot be explained for by the other predictor variables.
+
+```{r}
+ols_vif_tol(lmFull.VFlet.Ncorrect)
+ols_vif_tol(lmFull.VFlet.Ncorrect.raw)
+```
+
+*Plot Diagnositcs Full model with z composite score for Semantic Fluency*
+
+```{r VFlet_lmFull_zScores_diagnostics}
+ols_plot_diagnostics(lmFull.VFlet.Ncorrect)
+```
+
+*Plot Diagnositcs Full model with raw score for Semantic Fluency*
+
+```{r VFlet_lmFull_raw_diagnostics}
+ols_plot_diagnostics(lmFull.VFlet.Ncorrect.raw)
+```
+
+For all models, the Observed vs Predicted Plot shows that the model doesn't fit the data very well (pity) --> due to outliers?? What to do.... --> perhaps identify outliers using the Cook chart and residual plot and rerun the models?
+
+### Model comparisons for the CR measure preciding and coinciding with the COVID-19 pandemic
+
+The effect of the COVID-19 pandemic on CR and subsequent behavioural performance
+```{r}
+lmFull.VFlet.Ncorrect.during <- lm(zComp.Let ~ Age.Category*CR.composite.during + GenCogProc.composite, data = VFlet_Ncorrect_coded)
+summary(lmFull.VFlet.Ncorrect.during)
+```
+
+```{r}
+# Model comparisons
+anova(lmFull.VFlet.Ncorrect, lmFull.VFlet.Ncorrect.during)
+```
+No differences between the two models
+
+```{r}
+#Model comparisons through AIC values
+AIC(lmFull.VFlet.Ncorrect)
+AIC(lmFull.VFlet.Ncorrect.during)
+```
+
+The model with the composite score during Covid-19 seems to fit slightly better
+
+## Verbal Fluency - Actions
+
+### Descriptive Statistics
+
+```{r}
+## Create dataset that only includes data of the Number of Correct words Produced
+VFact_Ncorrect <- VFact %>%
+  dplyr::filter(Measures=="Ncorrect") %>%
+  dplyr::select(-Measures) %>%
+      #Recode age groups
+  dplyr::mutate(Age.Category=as.factor(dplyr::recode(Age.Category, '18 to 30 years old'="Younger",
+                                    '40 to 55 years old'="Middle-Aged",
+                                    '65 to 80 years old'="Older"))) %>%
+    #Use the z scores to filter out outliers (i.e., exclude values +/-2.5 SD per trial )
+  filter(between(zComp.Act, -2.5, +2.5)) %>% #No outliers
+  ungroup()
+
+# head(VFact_Ncorrect_coded, L=6)
+```
+
+```{r, message=F, warning=F}
+#Summarise data to present descriptives in a table
+(Descr_VFact <- VFact_Ncorrect %>%
+#Per Age Group
+  group_by(Age.Category) %>%
+  summarise(Nppt = length(unique(ID)),
+            total = round(mean(Total, na.rm=T),2),
+            sdtotal = round(sd(Total,na.rm=T),2),
+            # ztotal = mean(zComp.Act, na.rm=T),
+            people = round(mean(Things.people.do, na.rm=T),2),
+            eggs = round(mean(Egg, na.rm=T),2)))
+
+# write.csv(Descr_VFact, "./Figures and Tables/Descr_VFact_Ncorrect.csv", row.names = F)
+```
+```{r hist_VFact_zScores}
+#z-distribution of composite score for Action fluency
+hist(VFact$zComp.Act, breaks=20)
+```
+#### Visualisation Ncorrect Semantic Fluency
+
+```{r Boxplot_VFact_rawPerCategory, warning=F} 
+## Convert wide to long format for visualisation of data
+VFact_Ncorrect.long <- VFact_Ncorrect %>%
+  pivot_longer(cols=Total:Egg, names_to = "action", values_to = "Ncorrect")
+
+#Boxplot VFact Ncorrect
+# png(file="./Figures and Tables/Boxplot_VFactNcorrect.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFact_Ncorrect.long %>%
+    dplyr::filter(action!="Total") %>%
+    ggplot(aes(x=factor(action), y=Ncorrect, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    stat_summary(aes(label=round(..y..), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=4,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Action Category",
+         y = "Ncorrect (raw scores)",
+         title = "Number of Correctly Produced Words per Age Group and Action Category")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+
+```{r Boxplot_VFact_rawTotal, warning=F}
+# Boxplot VFact Ncorrect Raw Total
+# png(file="./Figures and Tables/Boxplot_VFactNcorrect_RawTotal.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFact_Ncorrect.long %>%
+    dplyr::filter(action=="Total") %>%
+    ggplot(aes(x=action, y=Ncorrect,fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    stat_summary(aes(label=round(..y..), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=4,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "",
+         y = "Ncorrect (raw scores)",
+         title = "Total Number of Correctly Produced Words for Both Action Categories per Age Group")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+
+*Figures Ncorrect Action Fluency z-scores*
+
+```{r Boxplot_VFact_zPerCategory, warning=F} 
+## Convert wide to long format for visualisation of data
+VFact_Ncorrect.long.zScores <- VFact_Ncorrect %>%
+  pivot_longer(cols=zComp.Act:zEggs, names_to = "zaction", values_to = "zNcorrect")
+
+#Boxplot VFact Ncorrect
+# png(file="./Figures and Tables/Boxplot_VFactNcorrect_zscores.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFact_Ncorrect.long.zScores %>%
+    dplyr::filter(zaction!="zComp.Act") %>%
+    ggplot(aes(x=factor(zaction), y=zNcorrect, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    # stat_summary(aes(label=round(..y..), group=as.factor(Age.Category)), 
+    #            fun=mean, geom = "label", size=4,
+    #            fill="white", show.legend=NA, label.size=NA,
+    #            position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Action Category",
+         y = "Ncorrect (z scores)",
+         title = "Number of Correctly Produced Words per Age Group and Action Category")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+```{r Boxplot_VFact_zTotal, warning=F}
+# Boxplot VFact Ncorrect Raw Total
+# png(file="./Figures and Tables/Boxplot_VFactNcorrect_Total_zscores.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFact_Ncorrect.long.zScores %>%
+    dplyr::filter(zaction=="zComp.Act") %>%
+    ggplot(aes(x=zaction, y=zNcorrect,fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    # stat_summary(aes(label=round(..y..), group=as.factor(Age.Category)), 
+    #            fun=mean, geom = "label", size=4,
+    #            fill="white", show.legend=NA, label.size=NA,
+    #            position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "",
+         y = "Ncorrect (z scores)",
+         title = "Total Number of Correctly Produced Words for Both Action Categories per Age Group")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+
+## Multiple Linear Regression - Action Fluency
+
+*Create user-defined contrasts for the Age Category variable*
+
+```{r}
+VFact_Ncorrect <- mutate(VFact_Ncorrect,
+                    Age.Category = 
+                      factor(Age.Category, levels = c("Middle-Aged", "Younger", "Older")))
+
+VFact_Ncorrect_coded <- VFact_Ncorrect
+contrasts(VFact_Ncorrect_coded$Age.Category) <- contr.helmert(3)
+contrasts(VFact_Ncorrect_coded$Age.Category)
+
+```
+
+*Unconditional model, i.e. without covariates*
+
+```{r}
+lmUncond.VFact.Ncorrect <- lm(zComp.Act ~ Age.Category*CR.composite.before, data = VFact_Ncorrect_coded)
+# broom::tidy(lmUncond.VFact.Ncorrect, conf.int=T)
+```
+
+*Full model including the covariates; outcome variable in z-distribution*
+```{r}
+
+lmFull.VFact.Ncorrect <- lm(zComp.Act ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFact_Ncorrect_coded)
+summary(lmFull.VFact.Ncorrect)
+#Tidy table output
+(tidylmFull.VFact.Ncorrect <- broom::tidy(lmFull.VFact.Ncorrect, conf.int=T)%>%
+  mutate_if(is.numeric, round, 3))
+# write.csv(tidylmFull.VFact.Ncorrect, "./Figures and Tables/VFact_Ncorrect_lmFull.csv")
+```
+
+```{r, message=F}
+#Look at pairwise comparisons between contrasts
+lmFull.VFact.Ncorrect.emmeans <- emtrends(lmFull.VFact.Ncorrect, ~Age.Category, var= "CR.composite.before")
+pairs(lmFull.VFact.Ncorrect.emmeans)
+```
+
+*Full model including the covariates; outcome variable as raw score*
+```{r}
+lmFull.VFact.Ncorrect.raw <- lm(Total ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFact_Ncorrect_coded)
+#Tidy table output
+broom::tidy(lmFull.VFact.Ncorrect.raw, conf.int=T) %>%
+  mutate_if(is.numeric, round, 3)
+```
+The model doesn't seem to predict either the composite score (z-distribution) or the raw Total score for Verbal Fluency Action Categories. Let's check the model assumptions + fit.
+
+*Assumption 1 - Linearity*
+
+```{r VFact_Linearity_LMunconditional}
+## Unconditional model with z composite score
+plot(lmUncond.VFact.Ncorrect, 1, main = "Unconditional model")
+```
+```{r VFact_Linearity_LMzfull}
+## Full model with z composite score
+plot(lmFull.VFact.Ncorrect, 1, main = "Full model (z-score composite score)")
+```
+```{r VFact_Linearity_LMrawfull}
+## Full model with raw total score
+plot(lmFull.VFact.Ncorrect.raw, 1, main = "Full model (raw total score)")
+```
+
+For all models, the red line is mostly horizontal, meaning that there is a linear relationship between the fitted line and the residual value.
+
+*Assumption 2 - Independence of Variables*
+
+```{r corPredictors_VFact_zScores}
+# Z composite of VF cat
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFact_Ncorrect_coded[,c(11,13)]), rownames="rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFact_Ncorrect_coded[,c(11,13)]),method='circle')
+```
+```{r corPredictors_VFact_rawScores}
+## Raw scores
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFact_Ncorrect_coded[,c(11,13)]), rownames = "rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFact_Ncorrect_coded[,c(11,13)]))
+```
+
+There seems to be no strong relationship between the predictor variables. Hence, we can assume Independence of Variables.
+
+*Assumption 3 - Normal Distribution of Residuals*
+
+Full model with z composite score
+```{r VFact_Normality_zScores}
+plot(lmFull.VFact.Ncorrect, 2, main = "Full model (z-score composite score)")
+```
+Full model with raw total score
+```{r VFact_Normality_rawScores}
+## Full model with raw total score
+plot(lmFull.VFact.Ncorrect.raw, 2, main = "Full model (raw total score)")
+```
+
+For the unconditional model and the full model with raw scores, the points seem to roughly follow a straight line. For the full model with the z-composite score, there is a small bulk on the left and right. Hence, other relationships/predictors that have not been included into the models could explain the variance for this model. One explanation could be the online format of the study. For example, some participants might have scored lower than they would in a lab-based study, due to unclear instructions. Also, it could have caused more distractions than there would have been in a lab based study.
+
+*Assumption 4 - Homoscedasticity or Equal Variance of Variables*
+
+Full model with z composite score
+```{r VFact_Homoscedasticity_zScores}
+plot(lmFull.VFact.Ncorrect, 3, main = "Full model (z-score composite score)")
+```
+
+Full model with raw total score
+```{r VFact_Homoscedasticity_rawScores}
+plot(lmFull.VFact.Ncorrect.raw, 3, main = "Full model (raw total score)")
+```
+For all models, the variance of residuals seems relatively equal across the predictors. Hence, the error terms are relatively the same across all values of the independent variable for all three models.
+
+#### Model fit diagnostics
+
+*Variation Inflation Factor*
+
+Any VIF value above 4 needs further investigation. There seems to be no concerning signs of collinearity (VIF values higher than 4). The tolerance values indicate the percentage of variance that cannot be explained for by the other predictor variables.
+
+```{r}
+ols_vif_tol(lmUncond.VFact.Ncorrect)
+ols_vif_tol(lmFull.VFact.Ncorrect)
+ols_vif_tol(lmFull.VFact.Ncorrect.raw)
+```
+
+*Plot Diagnositcs Full model with z composite score for Semantic Fluency*
+
+```{r VFact_lmFull_zScores_diagnostics}
+ols_plot_diagnostics(lmFull.VFact.Ncorrect)
+```
+
+*Plot Diagnositcs Full model with raw score for Semantic Fluency*
+
+```{r VFact_lmFull_raw_diagnostics}
+ols_plot_diagnostics(lmFull.VFact.Ncorrect.raw)
+```
+
+For all models, the Observed vs Predicted Plot shows that the model doesn't fit the data very well (pity) --> due to outliers?? What to do....
+
+It can explain the fact that the models do not explain the outcome variable in any case.
+
+### Model comparisons for the CR measure preciding and coinciding with the COVID-19 pandemic
+
+The effect of the COVID-19 pandemic on CR and subsequent behavioural performance
+
+```{r}
+lmFull.VFact.Ncorrect.during <- lm(zComp.Act ~ Age.Category*CR.composite.during + GenCogProc.composite, data = VFact_Ncorrect_coded)
+summary(lmFull.VFact.Ncorrect.during)
+```
+
+```{r}
+# Model comparisons
+anova(lmFull.VFact.Ncorrect, lmFull.VFact.Ncorrect.during)
+```
+No differences between the two models
+
+```{r}
+#Model comparisons through AIC values
+AIC(lmFull.VFact.Ncorrect)
+AIC(lmFull.VFact.Ncorrect.during)
+```
+
+The model with the composite score during Covid-19 seems to fit slightly better
+
+*Relationship between General Cognitive Processing and Action Fluency*
+
+```{r PNobjAcc_CR_corplot, warning = F}
+
+# tiff(file="../Figures and Tables/RelationVFact_Ncor_GenCogProc.tiff",
+# res = 500, family = "sans", width = 12, height=9, units="in")
+
+#Relationship Action Fluency and General cognitive processing
+(plot.VFact_GenCogProc <- VFact_Ncorrect_coded %>%
+       mutate(Age.Category_ordered = factor(Age.Category, levels=c("Younger", "Middle-Aged", "Older"))) %>%
+    ggplot(aes(x=GenCogProc.composite, y=zComp.Act, colour = as.factor(Age.Category_ordered))) +
+    geom_jitter(width = 0.25, size=5)+
+   geom_smooth(method = "glm", formula = y~x, fill="grey", colour="black", show.legend = F, size=1.3) +
+   labs(x = "General Cognitive Processing (z-scores)",
+        y= "Number of Words (z-scores)") +
+      coord_cartesian(ylim = c(-2,2.5), xlim = c(-2,2)) +
+   scale_x_continuous(breaks = seq(-2, 2, 1)) +
+    scale_y_continuous(breaks = seq(-2,2,1)) +
+   # facet_grid(~Age.Category, labeller=labeller(Age.Category=Ages))+
+    theme(text = element_text(size = 20),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black"),
+         legend.position = c(0.2, 0.8)) +
+         scale_colour_manual(values = confPalette, guide=guide_legend(title = "Age Group")))
+
+# dev.off()
+
+```
+
+
+
+## References
+
+```{r, include=F, echo=FALSE}
+knitr::write_bib(.packages(), "packages.bib")
+```
+
+---
+nocite: '@*'
+---
