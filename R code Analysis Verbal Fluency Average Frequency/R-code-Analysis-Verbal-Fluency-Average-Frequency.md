@@ -65,22 +65,22 @@ range(VFcat_AvFreq$zComp.Cat) #No outliers
 #Per Age Group
   group_by(Age.Category) %>%
   summarise(Nppt = length(unique(ID)), #Number of participants
-            total = mean(Total, na.rm=T), 
-            sdtotal = sd(Total, na.rm=T),#Total words correctly produced
-            ztotal = mean(zComp.Cat, na.rm=T), #Z-score per age group of total words correctly produced
-            animals = mean(Animals, na.rm=T), #Total words correctly produced in category Animals
-            vehicles = mean(Vehicles, na.rm=T), #Total words correctly produced in category vehicles
-            vandF = mean(Fruits.and.Vegetables, na.rm=T), #Total words correctly produced in category Fruits and Vegetables
-            fluid = mean(Fluid, na.rm=T), #Total words correctly produced in category fluid
-            writing = mean(Writing.Utensils, na.rm=T))) #Total words correctly produced in category writing utensils
+            total = round(mean(Total, na.rm=T),2), 
+            sdtotal = round(sd(Total, na.rm=T),2),#Total words correctly produced
+            ztotal = round(mean(zComp.Cat, na.rm=T),2), #Z-score per age group of total words correctly produced
+            animals = round(mean(Animals, na.rm=T),2), #Total words correctly produced in category Animals
+            vehicles = round(mean(Vehicles, na.rm=T),2), #Total words correctly produced in category vehicles
+            vandF = round(mean(Fruits.and.Vegetables, na.rm=T),2), #Total words correctly produced in category Fruits and Vegetables
+            fluid = round(mean(Fluid, na.rm=T),2), #Total words correctly produced in category fluid
+            writing = round(mean(Writing.Utensils, na.rm=T),2))) #Total words correctly produced in category writing utensils
 ```
 
     ## # A tibble: 3 x 10
-    ##   Age.Category  Nppt total sdtotal  ztotal animals vehicles vandF fluid writing
-    ##   <fct>        <int> <dbl>   <dbl>   <dbl>   <dbl>    <dbl> <dbl> <dbl>   <dbl>
-    ## 1 Middle-Aged     30  4.40   2.99  -0.0515    3.92     3.97  3.73  4.21    3.47
-    ## 2 Older           30  4.23   2.05  -0.0584    3.99     3.90  3.75  4.09    3.57
-    ## 3 Younger         30  3.96   0.156  0.160     4.12     4.06  3.79  4.32    3.54
+    ##   Age.Category  Nppt total sdtotal ztotal animals vehicles vandF fluid writing
+    ##   <fct>        <int> <dbl>   <dbl>  <dbl>   <dbl>    <dbl> <dbl> <dbl>   <dbl>
+    ## 1 Middle-Aged     30  4.4     2.99  -0.05    3.92     3.97  3.73  4.21    3.47
+    ## 2 Older           30  4.23    2.05  -0.06    3.99     3.9   3.75  4.09    3.57
+    ## 3 Younger         30  3.96    0.16   0.16    4.12     4.06  3.79  4.32    3.54
 
 ``` r
 #Write table to file
@@ -168,8 +168,8 @@ VFcat_AvFreq.long <- VFcat_AvFreq %>%
 ``` r
 # dev.off()
 
-tiff(file="../Figures and Tables/descrVFcat_BarPlot.tiff",
-width=800, height=400)
+# tiff(file="../Figures and Tables/descrVFcat_BarPlot.tiff",
+# width=800, height=400)
 
 (descr.VFcat_BarPlot <- VFcat_AvFreq.long %>%
     dplyr::filter(category=="Total") %>%
@@ -196,14 +196,13 @@ width=800, height=400)
   coord_cartesian(ylim = c(0,5.5))+
      scale_y_continuous(minor_breaks = seq(0,5,0.1),
                      breaks = seq(0,5,1)))
-
-dev.off()
 ```
 
-    ## png 
-    ##   2
+![](GBGon_VFAvFreq_figs/VFAvFreq_figs_Boxplot_VFcatAvFreq_rawTotal-2.png)<!-- -->
 
 ``` r
+# dev.off()
+
 # ggsave(descr.VFcat_BarPlot, filename = "../Figures and Tables/descrVFcat_BarPlot.tiff", height = 15, width=20)
 ```
 
@@ -337,19 +336,20 @@ summary(lmFull.VFcat.AvFreq)
 
 ``` r
 #Tidy table output
-(tidylmFull.VFcat.AvFreq <- broom::tidy(lmFull.VFcat.AvFreq, conf.int=T))
+(tidylmFull.VFcat.AvFreq <- broom::tidy(lmFull.VFcat.AvFreq, conf.int=T)%>%
+  mutate_if(is.numeric, round, 3))
 ```
 
     ## # A tibble: 7 x 7
     ##   term                   estimate std.error statistic p.value conf.low conf.high
     ##   <chr>                     <dbl>     <dbl>     <dbl>   <dbl>    <dbl>     <dbl>
-    ## 1 (Intercept)              0.0165    0.0462     0.358  0.721  -0.0754     0.109 
-    ## 2 Age.Category1            0.121     0.0598     2.02   0.0465  0.00193    0.240 
-    ## 3 Age.Category2           -0.0522    0.0377    -1.38   0.170  -0.127      0.0228
-    ## 4 CR.composite.before     -0.0456    0.0471    -0.968  0.336  -0.139      0.0481
-    ## 5 GenCogProc.composite    -0.0832    0.107     -0.776  0.440  -0.297      0.130 
-    ## 6 Age.Category1:CR.comp~  -0.0531    0.0578    -0.919  0.361  -0.168      0.0618
-    ## 7 Age.Category2:CR.comp~  -0.0430    0.0333    -1.29   0.199  -0.109      0.0231
+    ## 1 (Intercept)               0.017     0.046     0.358   0.721   -0.075     0.109
+    ## 2 Age.Category1             0.121     0.06      2.02    0.046    0.002     0.24 
+    ## 3 Age.Category2            -0.052     0.038    -1.38    0.17    -0.127     0.023
+    ## 4 CR.composite.before      -0.046     0.047    -0.968   0.336   -0.139     0.048
+    ## 5 GenCogProc.composite     -0.083     0.107    -0.776   0.44    -0.297     0.13 
+    ## 6 Age.Category1:CR.comp~   -0.053     0.058    -0.919   0.361   -0.168     0.062
+    ## 7 Age.Category2:CR.comp~   -0.043     0.033    -1.29    0.199   -0.109     0.023
 
 ``` r
 # write.csv(tidylmFull.VFcat.AvFreq, "./Figures and Tables/VFcat_AvFreq_zlmFull.csv", row.names = F)
@@ -357,14 +357,14 @@ summary(lmFull.VFcat.AvFreq)
 
 ``` r
 #Look at pairwise comparisons between contrasts
-lmFull.VFcat.AvFreq.emmeans <- emmeans::emmeans(lmFull.VFcat.AvFreq, ~Age.Category)
+lmFull.VFcat.AvFreq.emmeans <- emmeans::emtrends(lmFull.VFcat.AvFreq, ~Age.Category, var = "CR.composite.before")
 pairs(lmFull.VFcat.AvFreq.emmeans)
 ```
 
     ##  contrast                estimate    SE df t.ratio p.value
-    ##  (Middle-Aged) - Younger  -0.2419 0.120 83  -2.021  0.1134
-    ##  (Middle-Aged) - Older     0.0356 0.119 83   0.299  0.9520
-    ##  Younger - Older           0.2775 0.136 83   2.037  0.1097
+    ##  (Middle-Aged) - Younger    0.106 0.116 83   0.919  0.6300
+    ##  (Middle-Aged) - Older      0.182 0.115 83   1.580  0.2601
+    ##  Younger - Older            0.076 0.115 83   0.659  0.7876
     ## 
     ## P value adjustment: tukey method for comparing a family of 3 estimates
 
@@ -374,19 +374,20 @@ pairs(lmFull.VFcat.AvFreq.emmeans)
 lmFull.VFcat.AvFreq.raw <- lm(Total ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFcat_AvFreq_coded)
 
 #Tidy table output
-broom::tidy(lmFull.VFcat.AvFreq.raw, conf.int=T)
+broom::tidy(lmFull.VFcat.AvFreq.raw, conf.int=T) %>%
+  mutate_if(is.numeric, round, 3)
 ```
 
     ## # A tibble: 7 x 7
-    ##   term                  estimate std.error statistic  p.value conf.low conf.high
-    ##   <chr>                    <dbl>     <dbl>     <dbl>    <dbl>    <dbl>     <dbl>
-    ## 1 (Intercept)             4.20       0.220   19.1    4.69e-32    3.76      4.64 
-    ## 2 Age.Category1          -0.186      0.285   -0.654  5.15e- 1   -0.753     0.381
-    ## 3 Age.Category2          -0.0127     0.180   -0.0706 9.44e- 1   -0.370     0.345
-    ## 4 CR.composite.before     0.265      0.224    1.18   2.41e- 1   -0.181     0.711
-    ## 5 GenCogProc.composite   -0.173      0.511   -0.338  7.36e- 1   -1.19      0.844
-    ## 6 Age.Category1:CR.com~  -0.396      0.275   -1.44   1.55e- 1   -0.943     0.152
-    ## 7 Age.Category2:CR.com~  -0.147      0.158   -0.928  3.56e- 1   -0.462     0.168
+    ##   term                   estimate std.error statistic p.value conf.low conf.high
+    ##   <chr>                     <dbl>     <dbl>     <dbl>   <dbl>    <dbl>     <dbl>
+    ## 1 (Intercept)               4.20      0.22     19.1     0        3.76      4.64 
+    ## 2 Age.Category1            -0.186     0.285    -0.654   0.515   -0.753     0.381
+    ## 3 Age.Category2            -0.013     0.18     -0.071   0.944   -0.37      0.345
+    ## 4 CR.composite.before       0.265     0.224     1.18    0.241   -0.181     0.711
+    ## 5 GenCogProc.composite     -0.173     0.511    -0.338   0.736   -1.19      0.844
+    ## 6 Age.Category1:CR.comp~   -0.396     0.275    -1.44    0.155   -0.943     0.152
+    ## 7 Age.Category2:CR.comp~   -0.147     0.158    -0.928   0.356   -0.462     0.168
 
 The unconditional model and the model with the raw total scores do not
 seem to predict the outcome variable for Verbal Fluency Categories. In
@@ -429,21 +430,18 @@ average frequency scores seems to violate the assumption.
 ``` r
 # Z composite of VF cat
 ## Create table with correlation values between predictor variables
-tibble::as_tibble(cor(VFcat_AvFreq_coded[,c(5,20,25,27,28)]), rownames="rowname") 
+tibble::as_tibble(cor(VFcat_AvFreq_coded[,c(17,18)]), rownames="rowname") 
 ```
 
-    ## # A tibble: 5 x 6
-    ##   rowname        zComp.Cat OccupationCode CR.Soc.before CR.Prod.before CR.Prod.during
-    ##   <chr>              <dbl>          <dbl>         <dbl>          <dbl>          <dbl>
-    ## 1 zComp.Cat         1                  NA       -0.0117         -0.217         -0.201
-    ## 2 OccupationCode   NA                   1       NA              NA             NA    
-    ## 3 CR.Soc.before    -0.0117             NA        1               0.305          0.198
-    ## 4 CR.Prod.before   -0.217              NA        0.305           1              0.786
-    ## 5 CR.Prod.during   -0.201              NA        0.198           0.786          1
+    ## # A tibble: 2 x 3
+    ##   rowname              GenCogProc.composite CR.composite.before
+    ##   <chr>                               <dbl>               <dbl>
+    ## 1 GenCogProc.composite               1                  -0.0439
+    ## 2 CR.composite.before               -0.0439              1
 
 ``` r
 ## Create correlation plot between predictor variables
-corrplot(cor(VFcat_AvFreq_coded[,c(5,20,25,27,28)]),method='circle') 
+corrplot(cor(VFcat_AvFreq_coded[,c(17,18)]),method='circle') 
 ```
 
 ![](GBGon_VFAvFreq_figs/VFAvFreq_figs_corPredictors_VFcatAvFreq_zScores-1.png)<!-- -->
@@ -451,21 +449,18 @@ corrplot(cor(VFcat_AvFreq_coded[,c(5,20,25,27,28)]),method='circle')
 ``` r
 ## Raw scores
 ## Create table with correlation values between predictor variables
-tibble::as_tibble(cor(VFcat_AvFreq_coded[,c(11,20,25,27,28)]), rownames = "rowname")
+tibble::as_tibble(cor(VFcat_AvFreq_coded[,c(17,18)]), rownames = "rowname")
 ```
 
-    ## # A tibble: 5 x 6
-    ##   rowname         Total OccupationCode CR.Soc.before CR.Prod.before CR.Prod.during
-    ##   <chr>           <dbl>          <dbl>         <dbl>          <dbl>          <dbl>
-    ## 1 Total           1                 NA         0.154          0.181          0.326
-    ## 2 OccupationCode NA                  1        NA             NA             NA    
-    ## 3 CR.Soc.before   0.154             NA         1              0.305          0.198
-    ## 4 CR.Prod.before  0.181             NA         0.305          1              0.786
-    ## 5 CR.Prod.during  0.326             NA         0.198          0.786          1
+    ## # A tibble: 2 x 3
+    ##   rowname              GenCogProc.composite CR.composite.before
+    ##   <chr>                               <dbl>               <dbl>
+    ## 1 GenCogProc.composite               1                  -0.0439
+    ## 2 CR.composite.before               -0.0439              1
 
 ``` r
 ## Create correlation plot between predictor variables
-corrplot(cor(VFcat_AvFreq_coded[,c(11,20,25,27,28)]))
+corrplot(cor(VFcat_AvFreq_coded[,c(17,18)]))
 ```
 
 ![](GBGon_VFAvFreq_figs/VFAvFreq_figs_corPredictors_VFcatAvFreq_rawScores-1.png)<!-- -->
@@ -882,19 +877,20 @@ summary(lmFull.VFlet.AvFreq)
 
 ``` r
 #Tidy table output
-(tidylmFull.VFlet.AvFreq <- broom::tidy(lmFull.VFlet.AvFreq, conf.int=T))
+(tidylmFull.VFlet.AvFreq <- broom::tidy(lmFull.VFlet.AvFreq, conf.int=T)%>%
+  mutate_if(is.numeric, round, 3))
 ```
 
     ## # A tibble: 7 x 7
     ##   term                   estimate std.error statistic p.value conf.low conf.high
     ##   <chr>                     <dbl>     <dbl>     <dbl>   <dbl>    <dbl>     <dbl>
-    ## 1 (Intercept)             0.0512     0.0663    0.773   0.442   -0.0806    0.183 
-    ## 2 Age.Category1           0.149      0.0858    1.73    0.0868  -0.0220    0.319 
-    ## 3 Age.Category2          -0.0619     0.0540   -1.14    0.256   -0.169     0.0456
-    ## 4 CR.composite.before    -0.00920    0.0675   -0.136   0.892   -0.143     0.125 
-    ## 5 GenCogProc.composite    0.00600    0.154     0.0390  0.969   -0.300     0.312 
-    ## 6 Age.Category1:CR.comp~  0.0523     0.0828    0.632   0.529   -0.112     0.217 
-    ## 7 Age.Category2:CR.comp~ -0.0649     0.0477   -1.36    0.177   -0.160     0.0299
+    ## 1 (Intercept)               0.051     0.066     0.773   0.442   -0.081     0.183
+    ## 2 Age.Category1             0.149     0.086     1.73    0.087   -0.022     0.319
+    ## 3 Age.Category2            -0.062     0.054    -1.14    0.256   -0.169     0.046
+    ## 4 CR.composite.before      -0.009     0.068    -0.136   0.892   -0.143     0.125
+    ## 5 GenCogProc.composite      0.006     0.154     0.039   0.969   -0.3       0.312
+    ## 6 Age.Category1:CR.comp~    0.052     0.083     0.632   0.529   -0.112     0.217
+    ## 7 Age.Category2:CR.comp~   -0.065     0.048    -1.36    0.177   -0.16      0.03
 
 ``` r
 # write.csv(tidylmFull.VFlet.AvFreq, "./Figures and Tables/VFlet_zAvFreq_lmFull.csv")
@@ -934,19 +930,20 @@ summary(lmFull.VFlet.AvFreq.raw)
 
 ``` r
 #Tidy table output
-broom::tidy(lmFull.VFlet.AvFreq.raw, conf.int=T)
+broom::tidy(lmFull.VFlet.AvFreq.raw, conf.int=T)%>%
+  mutate_if(is.numeric, round, 3)
 ```
 
     ## # A tibble: 7 x 7
-    ##   term                  estimate std.error statistic  p.value conf.low conf.high
-    ##   <chr>                    <dbl>     <dbl>     <dbl>    <dbl>    <dbl>     <dbl>
-    ## 1 (Intercept)             4.40       0.165   26.7    1.57e-42   4.08       4.73 
-    ## 2 Age.Category1           0.117      0.213    0.547  5.86e- 1  -0.307      0.541
-    ## 3 Age.Category2           0.210      0.134    1.56   1.22e- 1  -0.0572     0.477
-    ## 4 CR.composite.before    -0.0783     0.168   -0.467  6.42e- 1  -0.412      0.255
-    ## 5 GenCogProc.composite   -0.264      0.382   -0.692  4.91e- 1  -1.02       0.496
-    ## 6 Age.Category1:CR.com~   0.0202     0.206    0.0979 9.22e- 1  -0.389      0.430
-    ## 7 Age.Category2:CR.com~  -0.0935     0.119   -0.789  4.33e- 1  -0.329      0.142
+    ##   term                   estimate std.error statistic p.value conf.low conf.high
+    ##   <chr>                     <dbl>     <dbl>     <dbl>   <dbl>    <dbl>     <dbl>
+    ## 1 (Intercept)               4.40      0.165    26.7     0        4.08      4.73 
+    ## 2 Age.Category1             0.117     0.213     0.547   0.586   -0.307     0.541
+    ## 3 Age.Category2             0.21      0.134     1.56    0.122   -0.057     0.477
+    ## 4 CR.composite.before      -0.078     0.168    -0.467   0.642   -0.412     0.255
+    ## 5 GenCogProc.composite     -0.264     0.382    -0.692   0.491   -1.02      0.496
+    ## 6 Age.Category1:CR.comp~    0.02      0.206     0.098   0.922   -0.389     0.43 
+    ## 7 Age.Category2:CR.comp~   -0.093     0.119    -0.789   0.433   -0.329     0.142
 
 The model doesn’t seem to predict the raw Total score for Verbal Fluency
 Letter. However, in the Full model with the z-composite score, older
@@ -988,21 +985,18 @@ average frequency scores seems to violate the assumption.
 ``` r
 ## z composite of VF let
 ## Create table with correlation values between predictor variables
-tibble::as_tibble(cor(VFlet_AvFreq_coded[,c(5,16, 21, 23,24)]), rownames="rowname")
+tibble::as_tibble(cor(VFlet_AvFreq_coded[,c(13,14)]), rownames="rowname")
 ```
 
-    ## # A tibble: 5 x 6
-    ##   rowname        zComp.Let OccupationCode CR.Soc.before CR.Prod.before CR.Prod.during
-    ##   <chr>              <dbl>          <dbl>         <dbl>          <dbl>          <dbl>
-    ## 1 zComp.Let         1                  NA         0.109         -0.160        -0.0526
-    ## 2 OccupationCode   NA                   1        NA             NA            NA     
-    ## 3 CR.Soc.before     0.109              NA         1              0.305         0.198 
-    ## 4 CR.Prod.before   -0.160              NA         0.305          1             0.786 
-    ## 5 CR.Prod.during   -0.0526             NA         0.198          0.786         1
+    ## # A tibble: 2 x 3
+    ##   rowname              GenCogProc.composite CR.composite.before
+    ##   <chr>                               <dbl>               <dbl>
+    ## 1 GenCogProc.composite               1                  -0.0439
+    ## 2 CR.composite.before               -0.0439              1
 
 ``` r
 ## Create correlation plot between predictor variables
-corrplot(cor(VFlet_AvFreq_coded[,c(5,16, 21, 23,24)]),method='circle')
+corrplot(cor(VFlet_AvFreq_coded[,c(13,14)]),method='circle')
 ```
 
 ![](GBGon_VFAvFreq_figs/VFAvFreq_figs_corPredictors_VFletAvFreq_zScores-1.png)<!-- -->
@@ -1010,21 +1004,18 @@ corrplot(cor(VFlet_AvFreq_coded[,c(5,16, 21, 23,24)]),method='circle')
 ``` r
 ## Raw scores
 ## Create table with correlation values between predictor variables
-tibble::as_tibble(cor(VFlet_AvFreq_coded[,c(9, 16, 21, 23,24)]), rownames = "rowname")
+tibble::as_tibble(cor(VFlet_AvFreq_coded[,c(14,13)]), rownames = "rowname")
 ```
 
-    ## # A tibble: 5 x 6
-    ##   rowname          Total OccupationCode CR.Soc.before CR.Prod.before CR.Prod.during
-    ##   <chr>            <dbl>          <dbl>         <dbl>          <dbl>          <dbl>
-    ## 1 Total           1                  NA       -0.0773          0.171          0.144
-    ## 2 OccupationCode NA                   1       NA              NA             NA    
-    ## 3 CR.Soc.before  -0.0773             NA        1               0.305          0.198
-    ## 4 CR.Prod.before  0.171              NA        0.305           1              0.786
-    ## 5 CR.Prod.during  0.144              NA        0.198           0.786          1
+    ## # A tibble: 2 x 3
+    ##   rowname              CR.composite.before GenCogProc.composite
+    ##   <chr>                              <dbl>                <dbl>
+    ## 1 CR.composite.before               1                   -0.0439
+    ## 2 GenCogProc.composite             -0.0439               1
 
 ``` r
 ## Create correlation plot between predictor variables
-corrplot(cor(VFlet_AvFreq_coded[,c(9,16, 21, 23,24)]))
+corrplot(cor(VFlet_AvFreq_coded[,c(14,13)]))
 ```
 
 ![](GBGon_VFAvFreq_figs/VFAvFreq_figs_corPredictors_VFletAvFreq_rawScores-1.png)<!-- -->
@@ -1073,7 +1064,7 @@ plot(lmFull.VFlet.AvFreq.raw, 3, main = "Full model (raw total score)")
 ```
 
 ![](GBGon_VFAvFreq_figs/VFAvFreq_figs_VFletAvFreq_Homoscedasticity_rawScores-1.png)<!-- -->
-The full model with the raw score seem to violete the assumption of
+The full model with the raw score seem to violates the assumption of
 Homoscedasticity So, the variance of residuals does not seem equal
 across the predictors. The full model with the z-scores does seem to
 meet the assumption of Homoscedasticity. Hence, the error terms are
@@ -1215,19 +1206,19 @@ range(VFact_AvFreq$zComp.Act) #No outliers
 #Per Age Group
   group_by(Age.Category) %>%
   summarise(Nppt = length(unique(ID)), #Number of participants
-            total = mean(Total, na.rm=T), #Total words correctly produced
-            sdtotal = sd(Total, na.rm=T),#Total words correctly produced
-            ztotal = mean(zComp.Act, na.rm=T), #Z-score per age group of total words correctly produced
-            people = mean(Things.people.do, na.rm=T), #Total words correctly produced in category "Things people do"
-            eggs = mean(Egg, na.rm=T))) #Total words correctly produced in category "Things you can do to an egg"
+            total = round(mean(Total, na.rm=T),2), #Total words correctly produced
+            sdtotal = round(sd(Total, na.rm=T),2),#Total words correctly produced
+            ztotal = round(mean(zComp.Act, na.rm=T),2), #Z-score per age group of total words correctly produced
+            people = round(mean(Things.people.do, na.rm=T),2), #Total words correctly produced in category "Things people do"
+            eggs = round(mean(Egg, na.rm=T),2))) #Total words correctly produced in category "Things you can do to an egg"
 ```
 
     ## # A tibble: 3 x 7
-    ##   Age.Category  Nppt total sdtotal  ztotal people  eggs
-    ##   <fct>        <int> <dbl>   <dbl>   <dbl>  <dbl> <dbl>
-    ## 1 Middle-Aged     30  4.21   0.164 0.0505    4.41  4.00
-    ## 2 Older           30  4.32   0.875 0.00348   4.35  3.99
-    ## 3 Younger         30  4.20   0.166 0.0152    4.40  4.00
+    ##   Age.Category  Nppt total sdtotal ztotal people  eggs
+    ##   <fct>        <int> <dbl>   <dbl>  <dbl>  <dbl> <dbl>
+    ## 1 Middle-Aged     30  4.21    0.16   0.05   4.41  4   
+    ## 2 Older           30  4.32    0.88   0      4.35  3.99
+    ## 3 Younger         30  4.2     0.17   0.02   4.4   4
 
 ``` r
 # write.csv(Descr_VFact, "./Figures and Tables/Descr_VFact_AvFreq.csv")
@@ -1447,19 +1438,20 @@ summary(lmFull.VFact.AvFreq)
 
 ``` r
 #Tidy table output
-(tidylmFull.VFact.AvFreq <- broom::tidy(lmFull.VFact.AvFreq, conf.int=T))
+(tidylmFull.VFact.AvFreq <- broom::tidy(lmFull.VFact.AvFreq, conf.int=T)%>%
+  mutate_if(is.numeric, round, 3))
 ```
 
     ## # A tibble: 7 x 7
     ##   term                   estimate std.error statistic p.value conf.low conf.high
     ##   <chr>                     <dbl>     <dbl>     <dbl>   <dbl>    <dbl>     <dbl>
-    ## 1 (Intercept)             0.0227     0.0702    0.324    0.747   -0.117    0.162 
-    ## 2 Age.Category1          -0.00187    0.0908   -0.0206   0.984   -0.183    0.179 
-    ## 3 Age.Category2          -0.0251     0.0573   -0.439    0.662   -0.139    0.0888
-    ## 4 CR.composite.before    -0.00488    0.0715   -0.0682   0.946   -0.147    0.137 
-    ## 5 GenCogProc.composite   -0.0875     0.163    -0.537    0.592   -0.411    0.236 
-    ## 6 Age.Category1:CR.comp~  0.0467     0.0877    0.532    0.596   -0.128    0.221 
-    ## 7 Age.Category2:CR.comp~ -0.0195     0.0505   -0.386    0.701   -0.120    0.0810
+    ## 1 (Intercept)               0.023     0.07      0.324   0.747   -0.117     0.162
+    ## 2 Age.Category1            -0.002     0.091    -0.021   0.984   -0.183     0.179
+    ## 3 Age.Category2            -0.025     0.057    -0.439   0.662   -0.139     0.089
+    ## 4 CR.composite.before      -0.005     0.072    -0.068   0.946   -0.147     0.137
+    ## 5 GenCogProc.composite     -0.088     0.163    -0.537   0.592   -0.411     0.236
+    ## 6 Age.Category1:CR.comp~    0.047     0.088     0.532   0.596   -0.128     0.221
+    ## 7 Age.Category2:CR.comp~   -0.019     0.05     -0.386   0.701   -0.12      0.081
 
 ``` r
 # write.csv(tidylmFull.VFact.AvFreq, "./Figures and Tables/VFact_zAvFreq_lmFull.csv")
@@ -1499,19 +1491,20 @@ summary(lmFull.VFact.AvFreq.raw)
 
 ``` r
 #Tidy table output
-broom::tidy(lmFull.VFact.AvFreq.raw, conf.int=T)
+broom::tidy(lmFull.VFact.AvFreq.raw, conf.int=T)%>%
+  mutate_if(is.numeric, round, 3)
 ```
 
     ## # A tibble: 7 x 7
-    ##   term                  estimate std.error statistic  p.value conf.low conf.high
-    ##   <chr>                    <dbl>     <dbl>     <dbl>    <dbl>    <dbl>     <dbl>
-    ## 1 (Intercept)            4.24       0.0563    75.3   3.38e-78   4.13      4.35  
-    ## 2 Age.Category1         -0.0139     0.0728    -0.190 8.49e- 1  -0.159     0.131 
-    ## 3 Age.Category2          0.0500     0.0459     1.09  2.79e- 1  -0.0413    0.141 
-    ## 4 CR.composite.before    0.00615    0.0573     0.107 9.15e- 1  -0.108     0.120 
-    ## 5 GenCogProc.composite   0.0646     0.131      0.494 6.22e- 1  -0.195     0.324 
-    ## 6 Age.Category1:CR.com~  0.0190     0.0704     0.269 7.88e- 1  -0.121     0.159 
-    ## 7 Age.Category2:CR.com~ -0.00949    0.0405    -0.234 8.15e- 1  -0.0900    0.0710
+    ##   term                   estimate std.error statistic p.value conf.low conf.high
+    ##   <chr>                     <dbl>     <dbl>     <dbl>   <dbl>    <dbl>     <dbl>
+    ## 1 (Intercept)               4.24      0.056    75.3     0        4.13      4.35 
+    ## 2 Age.Category1            -0.014     0.073    -0.19    0.849   -0.159     0.131
+    ## 3 Age.Category2             0.05      0.046     1.09    0.279   -0.041     0.141
+    ## 4 CR.composite.before       0.006     0.057     0.107   0.915   -0.108     0.12 
+    ## 5 GenCogProc.composite      0.065     0.131     0.494   0.622   -0.195     0.324
+    ## 6 Age.Category1:CR.comp~    0.019     0.07      0.269   0.788   -0.121     0.159
+    ## 7 Age.Category2:CR.comp~   -0.009     0.04     -0.234   0.815   -0.09      0.071
 
 None of the models seem to predict either the outcome variable for
 Verbal Fluency Action Categories. Let’s check the model assumptions +
@@ -1550,21 +1543,18 @@ assume linearity. Possibly due to outliers?
 ``` r
 # Z composite of VF action
 ## Create table with correlation values between predictor variables
-tibble::as_tibble(cor(VFact_AvFreq_coded[,c(5,14,19,21,23)]), rownames="rowname")
+tibble::as_tibble(cor(VFact_AvFreq_coded[,c(11,13)]), rownames="rowname")
 ```
 
-    ## # A tibble: 5 x 6
-    ##   rowname  zComp.Act CR.composite.du~ CR.Cog.during CR.Soc.during CR.Prod.during
-    ##   <chr>        <dbl>            <dbl>         <dbl>         <dbl>          <dbl>
-    ## 1 zComp.A~    1                0.0298        0.0523       -0.0340         0.0203
-    ## 2 CR.comp~    0.0298           1             0.760         0.476          0.652 
-    ## 3 CR.Cog.~    0.0523           0.760         1             0.0408         0.489 
-    ## 4 CR.Soc.~   -0.0340           0.476         0.0408        1             -0.0963
-    ## 5 CR.Prod~    0.0203           0.652         0.489        -0.0963         1
+    ## # A tibble: 2 x 3
+    ##   rowname              GenCogProc.composite CR.composite.before
+    ##   <chr>                               <dbl>               <dbl>
+    ## 1 GenCogProc.composite               1                  -0.0439
+    ## 2 CR.composite.before               -0.0439              1
 
 ``` r
 ## Create correlation plot between predictor variables
-corrplot(cor(VFact_AvFreq_coded[,c(5,14,19,21,23)]),method='circle')
+corrplot(cor(VFact_AvFreq_coded[,c(11,13)]),method='circle')
 ```
 
 ![](GBGon_VFAvFreq_figs/VFAvFreq_figs_corPredictors_VFactAvFreq_zScores-1.png)<!-- -->
@@ -1572,21 +1562,18 @@ corrplot(cor(VFact_AvFreq_coded[,c(5,14,19,21,23)]),method='circle')
 ``` r
 ## Raw scores
 ## Create table with correlation values between predictor variables
-tibble::as_tibble(cor(VFact_AvFreq_coded[,c(8,14,19,21,23)]), rownames = "rowname")
+tibble::as_tibble(cor(VFact_AvFreq_coded[,c(11,13)]), rownames = "rowname")
 ```
 
-    ## # A tibble: 5 x 6
-    ##   rowname      Total CR.composite.du~ CR.Cog.during CR.Soc.during CR.Prod.during
-    ##   <chr>        <dbl>            <dbl>         <dbl>         <dbl>          <dbl>
-    ## 1 Total       1                0.0445        0.0725       -0.0674         0.118 
-    ## 2 CR.compos~  0.0445           1             0.760         0.476          0.652 
-    ## 3 CR.Cog.du~  0.0725           0.760         1             0.0408         0.489 
-    ## 4 CR.Soc.du~ -0.0674           0.476         0.0408        1             -0.0963
-    ## 5 CR.Prod.d~  0.118            0.652         0.489        -0.0963         1
+    ## # A tibble: 2 x 3
+    ##   rowname              GenCogProc.composite CR.composite.before
+    ##   <chr>                               <dbl>               <dbl>
+    ## 1 GenCogProc.composite               1                  -0.0439
+    ## 2 CR.composite.before               -0.0439              1
 
 ``` r
 ## Create correlation plot between predictor variables
-corrplot(cor(VFact_AvFreq_coded[,c(8,14,19,21,23)]))
+corrplot(cor(VFact_AvFreq_coded[,c(11,13)]))
 ```
 
 ![](GBGon_VFAvFreq_figs/VFAvFreq_figs_corPredictors_VFactAvFreq_rawScores-1.png)<!-- -->
