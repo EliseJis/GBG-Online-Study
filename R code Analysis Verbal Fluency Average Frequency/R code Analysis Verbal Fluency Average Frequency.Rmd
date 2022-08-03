@@ -1,0 +1,1090 @@
+---
+title: "R Code Full Analysis Verbal Fluency Average Frequency"
+author: "Elise Oosterhuis"
+date: "Last compiled on `r format(Sys.time(), '%d/%m/%y')`"
+output: rmarkdown::github_document
+bibliography: ["packages.bib"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  fig.path = "GBGon_VFAvFreq_figs/VFAvFreq_figs_"
+)
+knitr::opts_knit$set(root.dir = '../R code Analysis Verbal Fluency Average Frequency') 
+
+
+```
+
+# Analysis Verbal Fluency Data - Average Frequency of Correctly Produced Words
+
+```{r, include=FALSE, message=F, warning=F, echo=F}
+############ VF DATA EXTRACTION AND TIDYING SCRIPT #######################
+requiredPackages = c('dplyr','tidyr','purrr', 'rio', 'tibble', 'fs', 'e1071',
+                     'stringr', 'tidyverse', 'readxl', 'performance',
+                     'lattice', 'broom', 'car', 'olsrr', 'corrplot', 'patchwork', 'emmeans')
+for(p in requiredPackages){
+  if(!require(p,character.only = TRUE)) install.packages(p)
+  library(p,character.only = TRUE)
+}
+
+#  Clean Environment
+rm(list=ls())
+
+#  Obtain data + set working and output directory
+date = format(Sys.Date(), "%d%m%Y")
+
+#  Set colourblind-friendly palette
+cbPalette <-  c("#000000", "#E69F00", "#56B4E9", "#999999","#009E73")
+
+```
+
+##### Read in data
+
+```{r}
+#Semantic fluency
+VFcat <- read.csv("../Data/Tidy/VFcat_complete_final.csv") %>%
+  dplyr::mutate(Type = "VFcat")
+# head(VFcat[1:6,1:11]) #reads the top 6 rows of the first 11 columns
+# tail(VFcat[1:6,1:11]) #reads the bottom 6 rows of the first 11 columns
+
+#Letter fluency
+VFlet <- read.csv("../Data/Tidy/VFlet_complete_final.csv") %>%
+  dplyr::mutate(Type = "VFlet")
+# head(VFlet[1:6,1:9])
+# tail(VFlet[1:6,1:9])
+
+#Action fluency
+VFact <- read.csv("../Data/Tidy/VFact_complete_final.csv") %>%
+  dplyr::mutate(Type = "VFact")
+# head(VFact[1:6,1:8])
+# tail(VFact[1:6,1:8])
+
+# # All VF tasks
+# VFall <- VFcat %>%
+#   left_join(VFlet,by=c("ID","Age.Category","Sex","Edu.Years","Measures","GenCogProc.composite","CR.composite.before",
+#     "CR.composite.during","OccupationCode","CR.GenAct.before","CR.GenAct.during","CR.Cog.before",
+#     "CR.Cog.during","CR.Soc.before","CR.Soc.during","CR.Prod.before","CR.Prod.during",
+#     "PA.compound.before","PA.compound.during","Smoking","Sleep","MarStatus",
+#     "Edu.Degree","CurrentOccu","Income","zCR.GenAct.before","zCR.GenAct.during",
+#     "zCR.PA.before","zCR.PA.during","zCR.edu","zCR.occu"))
+
+```
+
+
+## Verbal Fluency - Semantic/Categories
+
+### Descriptive Statistics
+
+```{r}
+## Create dataset that only includes data of the Subtlex Average Frequency of the produced words
+VFcat_AvFreq <- VFcat %>%
+  dplyr::filter(Measures=="AvWordFreq_subtlex") %>%
+  #Remove column called Measures (which now only contains "AvWordFreq_subtlex")
+  dplyr::select(-Measures) %>%
+    #Recode age groups
+  dplyr::mutate(Age.Category=as.factor(dplyr::recode(Age.Category, '18 to 30 years old'="Younger",
+                                    '40 to 55 years old'="Middle-Aged",
+                                    '65 to 80 years old'="Older")))
+range(VFcat_AvFreq$zComp.Cat) #No outliers
+
+# head(VFcat_AvFreq, L=6)
+
+```
+
+
+```{r, message=F, warning=F}
+#Create a descriptives table by summarising data of the semantic fluency task
+(Descr_VFcat <- VFcat_AvFreq %>%
+#Per Age Group
+  group_by(Age.Category) %>%
+  summarise(Nppt = length(unique(ID)), #Number of participants
+            total = mean(Total, na.rm=T), 
+            sdtotal = sd(Total, na.rm=T),#Total words correctly produced
+            ztotal = mean(zComp.Cat, na.rm=T), #Z-score per age group of total words correctly produced
+            animals = mean(Animals, na.rm=T), #Total words correctly produced in category Animals
+            vehicles = mean(Vehicles, na.rm=T), #Total words correctly produced in category vehicles
+            vandF = mean(Fruits.and.Vegetables, na.rm=T), #Total words correctly produced in category Fruits and Vegetables
+            fluid = mean(Fluid, na.rm=T), #Total words correctly produced in category fluid
+            writing = mean(Writing.Utensils, na.rm=T))) #Total words correctly produced in category writing utensils
+
+#Write table to file
+# write.csv(Descr_VFcat, "./Figures and Tables/Descr_VFcat_AvFreq.csv", row.names = F)
+```
+
+```{r hist_VFcatAvFreq_zScores}
+#Visualise z-distribution of the composite score for semantic fluency Average word frequency
+hist(VFcat_AvFreq$zComp.Cat, breaks=20) #Composite z-score of Semantic Fluency
+
+```
+
+
+#### Visualisation AvFreq Semantic Fluency
+
+```{r Boxplot_VFcatAvFreq_rawPerCategory, warning=F} 
+#Convert to long format for visualisation
+VFcat_AvFreq.long <- VFcat_AvFreq %>%
+  pivot_longer(cols=Total:Writing.Utensils, names_to = "category", values_to = "AvFreq")
+
+#Boxplot VF Average frequency (AvFreq)
+
+#Write figure to png file
+# png(file="./Figures and Tables/Boxplot_VFcatAvFreq.png",
+# width=800, height=350)
+
+
+(Boxplot_VF <- VFcat_AvFreq.long %>%
+    dplyr::filter(category!="Total") %>%
+    ggplot(aes(x=factor(category, levels=c("Animals", "Vehicles", "Fruits.and.Vegetables", "Fluid", "Writing.Utensils")), y=AvFreq, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(outlier.shape = NA, colour="grey50")+
+    stat_summary(aes(label=round(..y..,1), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=4,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Category",
+         y = "AvFreq (raw scores)",
+         title = "Average Word Frequency per Age Group and Category")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")) +
+  coord_cartesian(ylim = c(3,5)))
+
+# dev.off() #Closes png() function
+```
+
+```{r Boxplot_VFcatAvFreq_rawTotal, warning=F}
+#Boxplot VF AvFreq Raw Total
+# png(file="./Figures and Tables/Boxplot_VFcatAvFreq_RawTotal.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFcat_AvFreq.long %>%
+    dplyr::filter(category=="Total") %>%
+    ggplot(aes(x=category, y=AvFreq,fill = as.factor(Age.Category)),show.legend=FALSE) +
+    geom_boxplot(outlier.shape = NA, colour="grey50",show.legend=FALSE)+
+    stat_summary(aes(label=round(..y..,2), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=5,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=-2) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="grey")+ #Mean as white dot
+    labs(x = "Semantic Fluency",
+         y = "Average Frequency (raw scores)")+
+        scale_fill_manual(values = cbPalette) + # , guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")
+       theme(text = element_text(size = 20),
+             axis.ticks.x = element_blank(),
+             axis.text.x = element_blank(),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+  coord_cartesian(ylim = c(3,5))+
+     scale_y_continuous(minor_breaks = seq(3,5,1),
+                     breaks = seq(3,5, 0.5)))
+
+
+# dev.off()
+
+tiff(file="../Figures and Tables/descrVFcat_BarPlot.tiff",
+width=800, height=400)
+
+(descr.VFcat_BarPlot <- VFcat_AvFreq.long %>%
+    dplyr::filter(category=="Total") %>%
+       mutate(Age.Category_ordered = factor(Age.Category, levels=c("Younger", "Middle-Aged", "Older"))) %>%
+    ggplot(aes(x=category, y=AvFreq,fill = as.factor(Age.Category)),show.legend=FALSE) +
+    stat_summary(fun=mean, position=position_dodge(0.95), geom = "bar",show.legend = FALSE , colour = "black") +
+    stat_summary(fun.data=mean_cl_normal,position=position_dodge(0.95),geom="errorbar", width=0.4, colour="#999999") + 
+  # geom_errorbar(stat="summary", fun.data = mean_sdl, fun.args = list(mult=0.5),  
+  #               width=0.4, position=position_dodge(0.9), colour="grey50") +
+    #   stat_summary(fun = "mean", position = position_dodge(.75), 
+    #            show.legend=F, colour="grey")+ #Mean as white dot
+    labs(x = "Semantic Fluency",
+         y = "Average Frequency (raw scores)",
+         title = "Semantic Fluency - Average Frequency per Age group")+
+        scale_fill_manual(values = cbPalette) + # , guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")
+       theme(text = element_text(size = 20),
+             axis.ticks.x = element_blank(),
+             axis.text.x = element_blank(),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+  coord_cartesian(ylim = c(0,5.5))+
+     scale_y_continuous(minor_breaks = seq(0,5,0.1),
+                     breaks = seq(0,5,1)))
+
+dev.off()
+
+# ggsave(descr.VFcat_BarPlot, filename = "../Figures and Tables/descrVFcat_BarPlot.tiff", height = 15, width=20)
+
+
+```
+*Figures AvFreq Semantic Fluency zscores*
+
+```{r Boxplot_VFcatAvFreq_zPerCategory, warning=F} 
+#Convert to long format for visualisation
+VFcat_AvFreq.long.zscores <- VFcat_AvFreq %>%
+  pivot_longer(cols=zComp.Cat:zWriting, names_to = "zcategory", values_to = "zAvFreq")
+
+#Boxplot VF Average frequency (AvFreq)
+
+#Write figure to png file
+# png(file="./Figures and Tables/Boxplot_VFcatAvFreq_zscores.png",
+# width=800, height=350)
+
+(Boxplot_VFcat.zscores <- VFcat_AvFreq.long.zscores %>%
+    dplyr::filter(zcategory!="zComp.Cat") %>%
+    ggplot(aes(x=factor(zcategory, levels=c("zAnimals", "zVehicles", "zFandV", "zFluid", "zWriting")), y=zAvFreq, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Category",
+         y = "AvFreq (z scores)",
+         title = "Average Word Frequency per Age Group and Category")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")) +
+  coord_cartesian(ylim = c(-3,3)))
+
+# dev.off() #Closes png() function
+```
+
+```{r Boxplot_VFcatAvFreq_zTotal, warning=F}
+#Boxplot VF AvFreq Raw Total
+# png(file="./Figures and Tables/Boxplot_VFcatAvFreq_Total_zscores.png",
+# width=600, height=350)
+
+(Boxplot_VFcat.Totalzscore <- VFcat_AvFreq.long.zscores %>%
+    dplyr::filter(zcategory=="zComp.Cat") %>%
+    ggplot(aes(x=zcategory, y=zAvFreq,fill = as.factor(Age.Category)),show.legend=FALSE) +
+    geom_boxplot(colour="grey50",show.legend=FALSE)+
+    stat_summary(aes(label=round(..y..,2), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=5,
+               fill="white", show.legend=FALSE, label.size=NA,
+               position = position_dodge(.75), vjust=-2) +
+    stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Semantic Fluency",
+         y = "Average Frequency (z scores)")+
+        scale_fill_manual(values = cbPalette) + # , guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")
+       theme(text = element_text(size = 20),
+             axis.ticks.x = element_blank(),
+             axis.text.x = element_blank(),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+  coord_cartesian(ylim = c(-3,3))+
+     scale_y_continuous(minor_breaks = seq(-3,3,0.5),
+                     breaks = seq(-3,3,1)))
+
+
+# dev.off()
+```
+
+## Multiple Linear Regression - Semantic Fluency
+
+*Create user-defined contrasts for the Age Category variable*
+
+```{r}
+VFcat_AvFreq <- mutate(VFcat_AvFreq,
+                    Age.Category = 
+                      factor(Age.Category, levels = c("Middle-Aged", "Younger", "Older")))
+
+VFcat_AvFreq_coded <- VFcat_AvFreq
+contrasts(VFcat_AvFreq_coded$Age.Category) <- contr.helmert(3)
+contrasts(VFcat_AvFreq_coded$Age.Category)
+
+```
+
+*Unconditional model, i.e. without covariates*
+
+```{r}
+lmUncond.VFcat.AvFreq <- lm(zComp.Cat ~ Age.Category*CR.composite.before, data = VFcat_AvFreq_coded)
+# broom::tidy(lmUncond.VFcat.AvFreq, conf.int=T)
+```
+
+*Full model of AvFreq in z-distribution, including covariates*
+```{r}
+lmFull.VFcat.AvFreq <- lm(zComp.Cat ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFcat_AvFreq_coded)
+summary(lmFull.VFcat.AvFreq)
+
+#Tidy table output
+(tidylmFull.VFcat.AvFreq <- broom::tidy(lmFull.VFcat.AvFreq, conf.int=T))
+
+# write.csv(tidylmFull.VFcat.AvFreq, "./Figures and Tables/VFcat_AvFreq_zlmFull.csv", row.names = F)
+```
+
+```{r, message=F}
+#Look at pairwise comparisons between contrasts
+lmFull.VFcat.AvFreq.emmeans <- emmeans::emmeans(lmFull.VFcat.AvFreq, ~Age.Category)
+pairs(lmFull.VFcat.AvFreq.emmeans)
+```
+
+*Full model of AvFreq as raw score, including covariates*
+```{r}
+lmFull.VFcat.AvFreq.raw <- lm(Total ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFcat_AvFreq_coded)
+
+#Tidy table output
+broom::tidy(lmFull.VFcat.AvFreq.raw, conf.int=T)
+```
+
+The unconditional model and the model with the raw total scores do not seem to predict the outcome variable for Verbal Fluency Categories. In the full model with the average z-score as outcome variable, middle-aged adults seem to significantly produce higher frequency words than young adults.  
+
+Let's check the model assumptions + fit.
+
+*Assumption 1 - Linearity*
+
+```{r VFcatAvFreq_Linearity_LMunconditional}
+## Unconditional model with z composite score
+plot(lmUncond.VFcat.AvFreq, 1, main = "Unconditional model")
+```
+```{r VFcatAvFreq_Linearity_LMzfull}
+## Full model with z composite score
+plot(lmFull.VFcat.AvFreq, 1, main = "Full model (z-score composite score)")
+```
+```{r VFcatAvFreq_Linearity_LMrawfull}
+## Full model with raw total score
+plot(lmFull.VFcat.AvFreq.raw, 1, main = "Full model (raw total score)")
+```
+
+For the models with the z-composite score as outcome variable, the red line is mostly horizontal, meaning that there is a linear relationship between the fitted line and the residual value. The model with the raw average frequency scores seems to violate the assumption.
+
+*Assumption 2 - Independence of Variables*
+
+```{r corPredictors_VFcatAvFreq_zScores}
+# Z composite of VF cat
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFcat_AvFreq_coded[,c(5,20,25,27,28)]), rownames="rowname") 
+## Create correlation plot between predictor variables
+corrplot(cor(VFcat_AvFreq_coded[,c(5,20,25,27,28)]),method='circle') 
+```
+```{r corPredictors_VFcatAvFreq_rawScores}
+## Raw scores
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFcat_AvFreq_coded[,c(11,20,25,27,28)]), rownames = "rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFcat_AvFreq_coded[,c(11,20,25,27,28)]))
+
+```
+
+There seems to be no strong relationship between the predictor variables. Hence, we can assume Independence of Variables.
+
+*Assumption 3 - Normal Distribution of Residuals*
+
+Full model with z composite score
+```{r VFcatAvFreq_Normality_zScores}
+plot(lmFull.VFcat.AvFreq, 2, main = "Full model (z-score composite score)")
+```
+Full model with raw total score
+```{r VFcatAvFreq_Normality_rawScores}
+plot(lmFull.VFcat.AvFreq.raw, 2, main = "Full model (raw total score)")
+```
+
+The model with the raw scores violates the assumption. This is likely due to the two outliers on the right (point 7 and 17). The points in both the unconditional and full model with the z-composite score seem to roughly follow the straight line. There's a little bit of a bulk on the right for the full z-model and a small dip in both models.
+One explanation could be the online format of the study. For example, some participants might have scored lower than they would in a lab-based study, due to unclear instructions. Also, it could have caused more distractions than there would have been in a lab based study.
+
+*Assumption 4 - Homoscedasticity or Equal Variance of Variables*
+
+Full model with z composite score
+```{r VFcatAvFreq_Homoscedasticity_zScores}
+plot(lmFull.VFcat.AvFreq, 3, main = "Full model (z-score composite score)")
+```
+Full model with raw total score
+```{r VFcatAvFreq_Homoscedasticity_rawScores}
+plot(lmFull.VFcat.AvFreq.raw, 3, main = "Full model (raw total score)")
+```
+Again, the full model with the raw total score as outcome variable violates the assumption. For the other two models, the variance of residuals seems relatively equal across the predictors. Hence, the error terms are relatively the same across all values of the independent variable for all three models.
+
+Conclusion: the full model with the z-composite variable as outcome variable seem to meet the assumptions for multiple linear regression.
+
+#### Model fit diagnostics
+
+*Variation Inflation Factor*
+
+Any VIF value above 4 needs further investigation. There seems to be no concerning signs of collinearity (VIF values higher than 4). The tolerance values indicate the percentage of variance that cannot be explained for by the other predictor variables.
+
+```{r}
+ols_vif_tol(lmFull.VFcat.AvFreq)
+```
+
+*Plot Diagnositcs Full model with z composite score for Semantic Fluency*
+
+```{r  VFcatAvFreq_lmFull_diagnostics}
+ols_plot_diagnostics(lmFull.VFcat.AvFreq)
+```
+
+
+The Observed vs Predicted Plot shows that the model doesn't fit the data very well (pity) --> due to outliers?? What to do....
+
+### Model comparisons for the CR measure preciding and coinciding with the COVID-19 pandemic
+
+The effect of the COVID-19 pandemic on CR and subsequent behavioural performance
+```{r}
+lmFull.VFcat.AvFreq.during <- lm(zComp.Cat ~ Age.Category*CR.composite.during + 
+                                   GenCogProc.composite, data = 
+                                   VFcat_AvFreq_coded)
+summary(lmFull.VFcat.AvFreq.during)
+
+```
+```{r}
+anova(lmFull.VFcat.AvFreq, lmFull.VFcat.AvFreq.during)
+```
+
+Models are not significantly different from each other.
+
+```{r}
+AIC(lmFull.VFcat.AvFreq)
+AIC(lmFull.VFcat.AvFreq.during)
+```
+Although very similar, the model with the CR composite score pre-pandemic seems to fit the data slightly better. (Lower AIC indicates better fit)
+
+## Verbal Fluency - Letters
+
+```{r}
+## Create dataset that only includes data of the Subtlex Average Frequency of the produced words
+VFlet_AvFreq <- VFlet %>%
+  dplyr::filter(Measures=="AvWordFreq_subtlex") %>%
+  dplyr::select(-Measures) %>%
+    #Recode age groups
+  dplyr::mutate(Age.Category=as.factor(dplyr::recode(Age.Category, '18 to 30 years old'="Younger",
+                                    '40 to 55 years old'="Middle-Aged",
+                                    '65 to 80 years old'="Older")))
+
+range(VFlet_AvFreq$zComp.Let) #No outliers
+
+# head(VFlet_AvFreq, L=6)
+```
+
+### Descriptives
+
+```{r, message=F, warning=F}
+(Descr_VFlet <- VFlet_AvFreq %>%
+  #Per Age Group
+  group_by(Age.Category) %>%
+  summarise(Nppt = length(unique(ID)), #Number of participants
+            total = mean(Total, na.rm=T), #Total words correctly produced            
+            sdtotal = sd(Total, na.rm=T),#Total words correctly produced
+            ztotal = mean(zComp.Let, na.rm=T), #Z-score per age group of total words correctly produced
+            letterM = mean(M, na.rm=T), #Total words correctly produced for the letter M
+            letterS = mean(S, na.rm=T), #Total words correctly produced for the letter S
+            letterP = mean(P, na.rm=T))) #Total words correctly produced for the letter P
+# write.csv(Descr_VFlet, "./Figures and Tables/Descr_VFlet_AvFreq.csv", row.names = F)
+```
+
+```{r hist_VFlet_zAvFreq}
+#Visualise z-distribution of the composite score for letter fluency Average word frequency
+hist(VFlet_AvFreq$zComp.Let, breaks=20) #Composite z-score of Letter Fluency
+```
+
+#### Visualisation AvFreq Semantic Fluency
+
+```{r Boxplot_VFletAvFreq_rawPerCategory, warning=F} 
+#Convert to long format for visualisation
+VFlet_AvFreq.long <- VFlet_AvFreq %>%
+  pivot_longer(cols=Total:S, names_to = "letter", values_to = "AvFreq")
+
+# Boxplot VFlet AvFreq
+
+# png(file="./Figures and Tables/Boxplot_VFletAvFreq.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFlet_AvFreq.long %>%
+    dplyr::filter(letter!="Total") %>%
+    ggplot(aes(x=letter, y=AvFreq, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    stat_summary(aes(label=round(..y..,2), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=4,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Letter",
+         y = "AvFreq (raw scores)",
+         title = "Average Word Frequency per Age Group and Letter")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+```{r Boxplot_VFletAvFreq_rawTotal, warning=F}
+# Boxplot VFlet AvFreq raw total
+# png(file="./Figures and Tables/Boxplot_VFletAvFreq_RawTotal.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFlet_AvFreq.long %>%
+    dplyr::filter(letter=="Total") %>%
+    ggplot(aes(x=letter, y=AvFreq,fill = as.factor(Age.Category)), show.legend=FALSE) +
+    geom_boxplot(outlier.shape = NA, colour="grey50", show.legend=FALSE)+
+    stat_summary(aes(label=round(..y.., 2), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=5,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=c(-2,3.5,-1.5)) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Letter Fluency",
+         y = "Average Frequency (raw scores)")+
+        scale_fill_manual(values = cbPalette) + # , guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")
+       theme(text = element_text(size = 20),
+             axis.ticks.x = element_blank(),
+             axis.text.x = element_blank(),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+  coord_cartesian(ylim = c(3,5))+
+     scale_y_continuous(minor_breaks = seq(3,5,1),
+                     breaks = seq(3,5, 0.5)))
+
+
+# dev.off()
+```
+
+*Figures AvFreq Letter Fluency zscores*
+
+```{r Boxplot_VFletAvFreq_zPerCategory, warning=F} 
+#Convert to long format for visualisation
+VFlet_AvFreq.long.zscores <- VFlet_AvFreq %>%
+  pivot_longer(cols=zComp.Let:zP, names_to = "zletter", values_to = "zAvFreq")
+
+# Boxplot VFlet AvFreq
+# png(file="./Figures and Tables/Boxplot_VFletAvFreq_zscores.png",
+# width=600, height=350)
+
+(Boxplot_VFlet.zscores <- VFlet_AvFreq.long.zscores %>%
+    dplyr::filter(zletter!="zComp.Let") %>%
+    ggplot(aes(x=zletter, y=zAvFreq, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    # stat_summary(aes(label=round(..y..,2), group=as.factor(Age.Category)), 
+    #            fun=mean, geom = "label", size=4,
+    #            fill="white", show.legend=NA, label.size=NA,
+    #            position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Letter",
+         y = "AvFreq (z scores)",
+         title = "Average Word Frequency per Age Group and Letter")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+
+```{r Boxplot_VFleatAvFreq_zTotal, warning=F}
+# Boxplot VFlet AvFreq raw total
+# png(file="./Figures and Tables/Boxplot_VFletAvFreq_Total_zscores.png",
+# width=600, height=350)
+
+(Boxplot_VFlet.zscoreTotal <- VFlet_AvFreq.long.zscores %>%
+    dplyr::filter(zletter=="zComp.Let") %>%
+    ggplot(aes(x=zletter, y=zAvFreq,fill = as.factor(Age.Category)),show.legend=FALSE) +
+    geom_boxplot(colour="grey50",show.legend=FALSE)+
+       stat_summary(aes(label=round(..y..,2), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=5,
+               fill="white", show.legend=FALSE, label.size=NA,
+               position = position_dodge(.75), vjust=-2) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Letter Fluency",
+         y = "Average Frequency (z scores)")+
+        scale_fill_manual(values = cbPalette) + # , guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")
+       theme(text = element_text(size = 20),
+             axis.ticks.x = element_blank(),
+             axis.text.x = element_blank(),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+  coord_cartesian(ylim = c(-3,3))+
+     scale_y_continuous(minor_breaks = seq(-3,3,0.5),
+                     breaks = seq(-3,3,1)))
+
+# dev.off()
+
+```
+
+
+## Multiple Linear Regression - Letter Fluency
+
+*Create user-defined contrasts for the Age Category variable*
+
+```{r}
+VFlet_AvFreq <- mutate(VFlet_AvFreq,
+                    Age.Category = 
+                      factor(Age.Category, levels = c("Middle-Aged", "Younger", "Older")))
+
+VFlet_AvFreq_coded <- VFlet_AvFreq
+contrasts(VFlet_AvFreq_coded$Age.Category) <- contr.helmert(3)
+contrasts(VFlet_AvFreq_coded$Age.Category)
+
+```
+
+*Unconditional model, i.e. without covariates*
+```{r}
+lmUncond.VFlet.AvFreq <- lm(zComp.Let ~ Age.Category*CR.composite.before, data = VFlet_AvFreq_coded)
+# broom::tidy(lmUncond.VFlet.AvFreq, conf.int=T)
+```
+
+*Full model of AvFreq in z-distribution, including covariates*
+```{r}
+lmFull.VFlet.AvFreq <- lm(zComp.Let ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFlet_AvFreq_coded)
+summary(lmFull.VFlet.AvFreq)
+#Tidy table output
+(tidylmFull.VFlet.AvFreq <- broom::tidy(lmFull.VFlet.AvFreq, conf.int=T))
+# write.csv(tidylmFull.VFlet.AvFreq, "./Figures and Tables/VFlet_zAvFreq_lmFull.csv")
+```
+*Full model of AvFreq as raw score, including covariates*
+```{r}
+lmFull.VFlet.AvFreq.raw <- lm(Total ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFlet_AvFreq_coded)
+summary(lmFull.VFlet.AvFreq.raw)
+#Tidy table output
+broom::tidy(lmFull.VFlet.AvFreq.raw, conf.int=T)
+```
+The model doesn't seem to predict the  raw Total score for Verbal Fluency Letter. However, in the Full model with the z-composite score, older adults seem to produce significantly higher frequent words than younger adults.
+
+Let's check the model assumptions + fit.
+
+*Assumption 1 - Linearity*
+
+```{r VFletAvFreq_Linearity_LMunconditional}
+## Unconditional model with z composite score
+plot(lmUncond.VFlet.AvFreq, 1, main = "Unconditional model")
+```
+```{r VFletAvFreq_Linearity_LMzfull}
+## Full model with z composite score
+plot(lmFull.VFlet.AvFreq, 1, main = "Full model (z-score composite score)")
+```
+```{r VFletAvFreq_Linearity_LMrawfull}
+## Full model with raw total score
+plot(lmFull.VFlet.AvFreq.raw, 1, main = "Full model (raw total score)")
+```
+
+
+For the models with the z-composite score as outcome variable, the red line is mostly horizontal, meaning that there is a linear relationship between the fitted line and the residual value. The model with the raw average frequency scores seems to violate the assumption.
+
+*Assumption 2 - Independence of Variables*
+
+```{r corPredictors_VFletAvFreq_zScores}
+## z composite of VF let
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFlet_AvFreq_coded[,c(5,16, 21, 23,24)]), rownames="rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFlet_AvFreq_coded[,c(5,16, 21, 23,24)]),method='circle')
+```
+```{r corPredictors_VFletAvFreq_rawScores}
+## Raw scores
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFlet_AvFreq_coded[,c(9, 16, 21, 23,24)]), rownames = "rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFlet_AvFreq_coded[,c(9,16, 21, 23,24)]))
+
+```
+
+There seems to be no strong relationship between the predictor variables. Hence, we can assume Independence of Variables.
+
+*Assumption 3 - Normal Distribution of Residuals*
+
+Full model with z composite score
+```{r VFletAvFreq_Normality_zScores}
+plot(lmFull.VFlet.AvFreq, 2, main = "Full model (z-score composite score)")
+```
+Full model with raw total score
+```{r VFletAvFreq_Normality_rawScores}
+plot(lmFull.VFlet.AvFreq.raw, 2, main = "Full model (raw total score)")
+```
+
+For the unconditional and full model with the z-score as outcome variable, the points seem to roughly follow a straight line, except for two outliers on right. So, these two models seem to roughly meet the assumption. The full model with the raw score as outcome variable, there are three massive outliers on the right. Hence, other relationships/predictors that have not been included into the models could explain the variance.
+
+*Assumption 4 - Homoscedasticity or Equal Variance of Variables*
+
+Full model with z composite score
+```{r VFletAvFreq_Homoscedasticity_zScores}
+plot(lmFull.VFlet.AvFreq, 3, main = "Full model (z-score composite score)")
+```
+Full model with raw total score
+```{r VFletAvFreq_Homoscedasticity_rawScores}
+plot(lmFull.VFlet.AvFreq.raw, 3, main = "Full model (raw total score)")
+```
+The full model with the raw score seem to violete the assumption of Homoscedasticity So, the variance of residuals does not seem equal across the predictors. The full model with the z-scores does seem to meet the assumption of Homoscedasticity. Hence, the error terms are relatively the same across all values of the independent variable for this model.
+
+Conclusion: only the full model with the outcome variable along the z-distribution seems to meet all the assumptions.
+
+#### Model fit diagnostics
+
+*Variation Inflation Factor*
+
+Any VIF value above 4 needs further investigation. There seems to be no concerning signs of collinearity (VIF values higher than 4). The tolerance values indicate the percentage of variance that cannot be explained for by the other predictor variables.
+
+```{r}
+ols_vif_tol(lmFull.VFlet.AvFreq)
+```
+
+*Plot Diagnositcs Full model with z composite score for Semantic Fluency*
+
+```{r VFletAvFreq_lmFull_diagnostics}
+ols_plot_diagnostics(lmFull.VFlet.AvFreq)
+```
+
+The Observed vs Predicted Plot shows that the model doesn't fit the data very well (pity) --> due to outliers?? What to do.... --> perhaps identify outliers using the Cook chart and residual plot and rerun the models?
+
+### Model comparisons for the CR measure preciding and coinciding with the COVID-19 pandemic
+
+The effect of the COVID-19 pandemic on CR and subsequent behavioural performance
+```{r}
+lmFull.VFlet.AvFreq.during <- lm(zComp.Let ~ Age.Category*CR.composite.during + 
+                                   GenCogProc.composite, data = 
+                                   VFlet_AvFreq_coded)
+summary(lmFull.VFlet.AvFreq.during)
+```
+
+```{r}
+# Model comparison
+anova(lmFull.VFlet.AvFreq, lmFull.VFlet.AvFreq.during)
+```
+
+Models are not significantly different from each other.
+
+```{r}
+# Mode comparison with AIC
+AIC(lmFull.VFlet.AvFreq)
+AIC(lmFull.VFlet.AvFreq.during)
+```
+
+Although very similar, the model with the CR composite score pre-pandemic seems to fit the data slightly better.
+
+## Verbal Fluency - Actions
+
+### Descriptive Statistics
+
+```{r}
+## Create dataset that only includes data of the Subtlex Average Frequency of the produced words
+VFact_AvFreq <- VFact %>%
+  dplyr::filter(Measures=="AvWordFreq_subtlex") %>%
+  #Remove column called Measures (which now only contains "AvWordFreq_subtlex")
+  dplyr::select(-Measures) %>%  #Recode age groups
+  dplyr::mutate(Age.Category=as.factor(dplyr::recode(Age.Category, '18 to 30 years old'="Younger",
+                                    '40 to 55 years old'="Middle-Aged",
+                                    '65 to 80 years old'="Older")))
+
+range(VFact_AvFreq$zComp.Act) #No outliers
+
+# head(VFact_AvFreq, L=6)
+```
+
+```{r, message=F, warning=F}
+#Create a descriptives table by summarising data of the semantic fluency task
+(Descr_VFact <- VFact_AvFreq %>%
+#Per Age Group
+  group_by(Age.Category) %>%
+  summarise(Nppt = length(unique(ID)), #Number of participants
+            total = mean(Total, na.rm=T), #Total words correctly produced
+            sdtotal = sd(Total, na.rm=T),#Total words correctly produced
+            ztotal = mean(zComp.Act, na.rm=T), #Z-score per age group of total words correctly produced
+            people = mean(Things.people.do, na.rm=T), #Total words correctly produced in category "Things people do"
+            eggs = mean(Egg, na.rm=T))) #Total words correctly produced in category "Things you can do to an egg"
+
+# write.csv(Descr_VFact, "./Figures and Tables/Descr_VFact_AvFreq.csv")
+```
+
+```{r hist_VFactAvFreq_zScores}
+hist(VFact_AvFreq$zComp.Act, breaks=20) #Composite z-score of Semantic Fluency
+```
+
+#### Visualisation AvFreq Action Fluency
+
+```{r Boxplot_VFactAvFreq_rawPerCategory, warning=F} 
+#Convert to long format for visualisation
+VFact_AvFreq.long <- VFact_AvFreq %>%
+  pivot_longer(cols=Total:Egg, names_to = "action", values_to = "AvFreq")
+
+#Boxplot VF act AvFreq
+# png(file="./Figures and Tables/Boxplot_VFactAvFreq.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFact_AvFreq.long %>%
+    dplyr::filter(action!="Total") %>%
+    ggplot(aes(x=factor(action), y=AvFreq, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    stat_summary(aes(label=round(..y..,2), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=4,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Action Category",
+         y = "AvFreq (raw scores)",
+         title = "Average Word frequency per Age Group and Action Category")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+```{r Boxplot_VFactAvFreq_rawTotal, warning=F}
+#Boxplot VFact Raw Total
+# png(file="./Figures and Tables/Boxplot_VFactAvFreq_RawTotal.png",
+# width=600, height=350)
+
+(Boxplot_VF <- VFact_AvFreq.long %>%
+    dplyr::filter(action=="Total") %>%
+    ggplot(aes(x=action, y=AvFreq,fill = as.factor(Age.Category)), show.legend=FALSE) +
+    geom_boxplot(colour="grey50", show.legend=FALSE)+
+    stat_summary(aes(label=round(..y..,2), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=5,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=c(-3.25,-2.5,-3.25)) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Action Fluency",
+         y = "Average Frequency (raw scores)")+
+        scale_fill_manual(values = cbPalette) + # , guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")
+       theme(text = element_text(size = 20),
+             axis.ticks.x = element_blank(),
+             axis.text.x = element_blank(),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+  coord_cartesian(ylim = c(3,5))+
+     scale_y_continuous(minor_breaks = seq(3,5,1),
+                     breaks = seq(3,5, 0.5)))
+
+# dev.off()
+```
+
+*Figures AvFreq Action Fluency zscores*
+
+```{r Boxplot_VFactAvFreq_zPerCategory, warning=F} 
+#Convert to long format for visualisation
+VFact_AvFreq.long.zscores <- VFact_AvFreq %>%
+  pivot_longer(cols=zComp.Act:zEggs, names_to = "zaction", values_to = "zAvFreq")
+
+#Boxplot VF act AvFreq
+# png(file="./Figures and Tables/Boxplot_VFactAvFreq_zscores.png",
+# width=600, height=350)
+
+(Boxplot_VF_sub.zscores <- VFact_AvFreq.long.zscores %>%
+    dplyr::filter(zaction!="zComp.Act") %>%
+    ggplot(aes(x=factor(zaction), y=zAvFreq, 
+                                               fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    stat_summary(aes(label=round(..y..,2), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=4,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Action Category",
+         y = "AvFreq (z scores)",
+         title = "Average Word frequency per Age Group and Action Category")+
+        scale_fill_discrete(guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+```{r Boxplot_VFactAvFreq_zTotal, warning=F}
+#Boxplot VFact Raw Total
+# png(file="./Figures and Tables/Boxplot_VFactAvFreq_Total_zscores.png",
+# width=600, height=350)
+
+(Boxplot_VFact_zscoreTotal <- VFact_AvFreq.long.zscores %>%
+    dplyr::filter(zaction=="zComp.Act") %>%
+    ggplot(aes(x=zaction, y=zAvFreq,fill = as.factor(Age.Category)), show.legend=FALSE) +
+    geom_boxplot(colour="grey50", show.legend=FALSE)+
+       stat_summary(aes(label=round(..y..,2), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=5,
+               fill="white", show.legend=FALSE, label.size=NA,
+               position = position_dodge(.75), vjust=-2) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Action Fluency",
+         y = "Average Frequency (z scores)") +
+        scale_fill_manual(values = cbPalette) + # , guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")
+       theme(text = element_text(size = 20),
+             axis.ticks.x = element_blank(),
+             axis.text.x = element_blank(),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+  coord_cartesian(ylim = c(-3,3))+
+     scale_y_continuous(minor_breaks = seq(-3,3,0.5),
+                     breaks = seq(-3,3,1)))
+
+
+# dev.off()
+
+(Boxplots.VFall_Totalz <- Boxplot_VFcat.Totalzscore + Boxplot_VFlet.zscoreTotal  + Boxplot_VFact_zscoreTotal + plot_layout(widths = 4))
+
+# ggsave(Boxplots.VFall_Totalz, filename = "../Figures and Tables/Boxplots_VFall_Totalz.tiff", height = 15, width=30)
+
+
+```
+
+## Multiple Linear Regression - Action Fluency
+
+
+*Create user-defined contrasts for the Age Category variable*
+
+```{r}
+VFact_AvFreq <- mutate(VFact_AvFreq,
+                    Age.Category = 
+                      factor(Age.Category, levels = c("Middle-Aged", "Younger", "Older")))
+
+VFact_AvFreq_coded <- VFact_AvFreq
+contrasts(VFact_AvFreq_coded$Age.Category) <- contr.helmert(3)
+contrasts(VFact_AvFreq_coded$Age.Category)
+
+```
+
+*Unconditional model, i.e. without covariates*
+```{r}
+lmUncond.VFact.AvFreq <- lm(zComp.Act ~ Age.Category*CR.composite.before, data = VFact_AvFreq_coded)
+# broom::tidy(lmUncond.VFact.AvFreq, conf.int=T)
+```
+
+*Full model of AvFreq in z-distribution, including covariates*
+```{r}
+lmFull.VFact.AvFreq <- lm(zComp.Act ~ Age.Category*CR.composite.before +GenCogProc.composite, data = VFact_AvFreq_coded)
+summary(lmFull.VFact.AvFreq)
+#Tidy table output
+(tidylmFull.VFact.AvFreq <- broom::tidy(lmFull.VFact.AvFreq, conf.int=T))
+# write.csv(tidylmFull.VFact.AvFreq, "./Figures and Tables/VFact_zAvFreq_lmFull.csv")
+```
+
+*Full model of AvFreq as raw score, including covariates*
+```{r}
+lmFull.VFact.AvFreq.raw <- lm(Total ~ Age.Category*CR.composite.before + GenCogProc.composite, data = VFact_AvFreq_coded)
+summary(lmFull.VFact.AvFreq.raw)
+#Tidy table output
+broom::tidy(lmFull.VFact.AvFreq.raw, conf.int=T)
+```
+None of the models seem to predict either the outcome variable for Verbal Fluency Action Categories. Let's check the model assumptions + fit.
+
+*Assumption 1 - Linearity*
+
+```{r VFactAvFreq_Linearity_LMunconditional}
+## Unconditional model with z composite score
+plot(lmUncond.VFact.AvFreq, 1, main = "Unconditional model")
+```
+```{r VFactAvFreq_Linearity_LMzfull}
+## Full model with z composite score
+plot(lmFull.VFact.AvFreq, 1, main = "Full model (z-score composite score)")
+```
+```{r VFactAvFreq_Linearity_LMrawfull}
+## Full model with raw total score
+plot(lmFull.VFact.AvFreq.raw, 1, main = "Full model (raw total score)")
+```
+For the unconditional model and the full model with raw scores, the red line is mostly horizontal, meaning that there is a linear relationship between the fitted line and the residual value. However, residuals seem to be higher for the extreme min and max fitted values. Hence, we can't assume linearity. Possibly due to outliers?
+
+*Assumption 2 - Independence of Variables*
+
+```{r corPredictors_VFactAvFreq_zScores}
+# Z composite of VF action
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFact_AvFreq_coded[,c(5,14,19,21,23)]), rownames="rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFact_AvFreq_coded[,c(5,14,19,21,23)]),method='circle')
+```
+
+
+```{r corPredictors_VFactAvFreq_rawScores}
+## Raw scores
+## Create table with correlation values between predictor variables
+tibble::as_tibble(cor(VFact_AvFreq_coded[,c(8,14,19,21,23)]), rownames = "rowname")
+## Create correlation plot between predictor variables
+corrplot(cor(VFact_AvFreq_coded[,c(8,14,19,21,23)]))
+```
+
+There seems to be no strong relationship between the predictor variables. Hence, we can assume Independence of Variables.
+
+*Assumption 3 - Normal Distribution of Residuals*
+
+Full model with z composite score
+```{r VFactAvFreq_Normality_zScores}
+## Full model with z composite score
+plot(lmFull.VFact.AvFreq, 2, main = "Full model (z-score composite score)")
+```
+
+Full model with raw total score
+```{r VFactAvFreq_Normality_rawScores}
+plot(lmFull.VFact.AvFreq.raw, 2, main = "Full model (raw total score)")
+```
+
+For the unconditional and full model with z-composite score, the points seem to roughly follow a straight line. However, there is a dip on the right and an influential point (point 12). Hence, other relationships/predictors that have not been included into the models could explain the variance for these models. One explanation could be the online format of the study. For example, some participants might have scored lower than they would in a lab-based study, due to unclear instructions. Also, it could have caused more distractions than there would have been in a lab based study. For the full model with the raw scores, there is one massive outlier (point 7). 
+
+*Assumption 4 - Homoscedasticity or Equal Variance of Variables*
+
+Full model with z composite score
+```{r VFactAvFreq_Homoscedasticity_zScores}
+plot(lmFull.VFact.AvFreq, 3, main = "Full model (z-score composite score)")
+```
+
+Full model with raw total score
+```{r VFactAvFreq_Homoscedasticity_rawScores}
+plot(lmFull.VFact.AvFreq.raw, 3, main = "Full model (raw total score)")
+```
+
+#### Model fit diagnostics
+
+*Variation Inflation Factor*
+
+Any VIF value above 4 needs further investigation. There seems to be no concerning signs of collinearity (VIF values higher than 4). The tolerance values indicate the percentage of variance that cannot be explained for by the other predictor variables.
+
+```{r}
+ols_vif_tol(lmFull.VFact.AvFreq) #zscores only 
+```
+
+*Plot Diagnositcs Full model with z composite score for Action Fluency*
+
+```{r VFactAvFreq_lmFull_diagnostics}
+ols_plot_diagnostics(lmFull.VFact.AvFreq)
+```
+
+For all models, the Observed vs Predicted Plot shows that the model doesn't fit the data very well (pity) --> due to outliers?? What to do....
+
+It can explain the fact that the models do not explain the outcome variable in any case.
+
+### Model comparisons for the CR measure preciding and coinciding with the COVID-19 pandemic
+
+The effect of the COVID-19 pandemic on CR and subsequent behavioural performance
+
+```{r}
+lmFull.VFact.AvFreq.during <- lm(zComp.Act ~ Age.Category*CR.composite.during + 
+                                   GenCogProc.composite, data = 
+                                   VFact_AvFreq_coded)
+summary(lmFull.VFact.AvFreq.during)
+
+```
+
+```{r}
+#Model comparison
+anova(lmFull.VFact.AvFreq, lmFull.VFact.AvFreq.during)
+```
+
+Models are not significantly different from each other.
+
+```{r}
+#Model comparison through AIC comparison
+AIC(lmFull.VFact.AvFreq)
+AIC(lmFull.VFact.AvFreq.during)
+
+```
+
+Although very similar, the model with the CR composite score during-pandemic seems to fit the data slightly better.
+
+
+
+## References
+
+```{r, include=F, echo=FALSE}
+knitr::write_bib(.packages(), "packages.bib")
+```
+
+---
+nocite: '@*'
+---
