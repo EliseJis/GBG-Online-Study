@@ -1,0 +1,898 @@
+---
+title: "R Code Full Analysis Picture Naming Reaction Times"
+author: "Elise Oosterhuis"
+date: "Last compiled on `r format(Sys.time(), '%d/%m/%y')`"
+output: rmarkdown::pdf_document
+bibliography: ["packages.bib","references.bib"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  fig.path = "GBGon_PNrt_figs/PNrt_figs_"
+)
+```
+
+
+# Analysis Picture Naming Reaction Times GBG online study
+
+```{r, include=FALSE, message=F, warning=F, echo=F}
+requiredPackages = c('dplyr','tidyr','purrr', 'rio', 'tibble', 'hablar', 'fs', 'e1071',
+                     'stringr', 'tidyverse', 'lme4', 'lmerTest', 'performance',
+                     'lattice', 'broom', 'car', 'sjPlot', 'knitr')
+for(p in requiredPackages){
+  if(!require(p,character.only = TRUE)) install.packages(p)
+  library(p,character.only = TRUE)
+}
+
+#  Clean Environment
+rm(list=ls())
+
+#  Obtain data + set working and output directory
+date = format(Sys.Date(), "%d%m%Y")
+
+#  Set colourblind-friendly palette
+cbPalette <-  c("#000000", "#E69F00", "#56B4E9", "#999999","#009E73")
+confPalette <- c("#4B3B40", "#960200", "#CCB216")
+
+```
+
+##### Read in data
+
+```{r}
+##### Read files ####
+PNobjects <- read.csv("../Data/Tidy/PNobjects_complete_final.csv") %>%
+  filter(Age.Category !="")
+
+PNactions <- read.csv("../Data/Tidy/PNactions_complete_final.csv") %>%
+  filter(Age.Category !="")
+ 
+# head(PNobjects[1:6,1:4])
+# tail(PNobjects[1:6,1:4])
+```
+
+## Descriptives
+
+*Mean and standard deviations picture naming tasks*
+
+```{r, message=F}
+options(dplyr.summarise.inform = FALSE) #Suppress summarise message (`summarise()` has grouped output by 'Task.Name', 'Age.Category'. You can override using the `.groups` argument.) in output
+
+# Combine both picture-naming datasets
+PN_all <- rbind(PNobjects, PNactions) %>%
+  convert(chr(type)) %>%
+  dplyr::mutate(Task.Name=dplyr::recode(Task.Name, 'Picture Naming Task - Actions' #Change task names
+                                = "Actions", 'Picture Naming Task - Objects' 
+                                = "Objects"))%>%
+  dplyr::mutate(Age.Category=as.factor(dplyr::recode(Age.Category, '18 to 30 years old'="Younger", #Recode age groups as numeric values
+                                    '40 to 55 years old'="Middle-Aged",
+                                    '65 to 80 years old'="Older")))
+
+#Filter out outliers for Reaction Time for the combined dataset
+PN_RT <- PN_all %>%
+  dplyr::filter(Acc==1) %>% #Acc==1 means only correctly answered trials will be included, i.e., removing all incorrect trials
+#Create z scores for reaction time per age group (younger, middle-aged, and older adults) and per type (Actions and Objects separately)
+  group_by(Age.Category, type) %>%
+  mutate(zRT = scale(RT)) %>% 
+#Use the z scores to filter out outliers (i.e., exclude values +/-2.5 SD per trial )
+  filter(between(zRT, -2.5, +2.5)) %>% 
+  ungroup()
+
+# Mean and SD for picture naming
+## Reaction Time (only correct trials; outliers excluded)
+(PNrt_sum <- PN_RT %>%
+    group_by(Task.Name, Age.Category) %>%
+#Obtain mean and standard deviation for reaction time per task (actions and objects separately) and Age Group
+    dplyr::summarise(mean_RT = round(mean(RT, na.rm=T),2),
+            sd_RT = round(sd(RT,na.rm=T),2)))
+## Save output table as .csv fil
+# write.csv(PNrt_sum, file = "./Figures and Tables/Descriptives_PNrt.csv", row.names = F)e
+```
+
+### Plots for Reaction Time
+```{r Boxplot_PNrt, warning=F, message=F} 
+# Boxplot for Reaction Time
+# png(file="./Figures and Tables/Boxplot_PNrt.png",
+# width=600, height=350)
+
+(Boxplot_PNrt <- ggplot(PN_RT, aes(x=Task.Name, y=RT, fill = as.factor(Age.Category))) +
+    geom_boxplot(colour="grey50")+
+    stat_summary(aes(label=round(..y..), group=as.factor(Age.Category)), 
+               fun=mean, geom = "label", size=4,
+               fill="white", show.legend=NA, label.size=NA,
+               position = position_dodge(.75), vjust=-3) +
+      stat_summary(fun = "mean", position = position_dodge(.75), 
+               show.legend=F, colour="white")+ #Mean as white dot
+    labs(x = "Type of Task",
+         y = "Reaction Time (in ms)",
+         title = "Reaction Time Boxplot per Age Group for Object and Action Naming")+
+        scale_fill_manual(values = cbPalette, guide=guide_legend(title = "Age Group"), labels=c("18 to 30 years old","40 to 55 years old", "65 to 80 years old")))
+
+# dev.off()
+```
+
+```{r Barplot_PNrt, warning=F, message=F}
+
+# Barplot Picture Naming Reaction times
+tiff(file="../Figures and Tables/PNrt_AgeGroups.tiff",
+width=800, height=700)
+# Ages = as_labeller(c(`1`="Younger", `2`="Middle-Aged", `3`="Older"))
+
+(Barplot_PNrt <- PN_RT %>% 
+      mutate(Age.Category_ordered = factor(Age.Category, levels=c("Younger", "Middle-Aged", "Older"))) %>%
+   # filter(Task.Name == "Objects") %>%
+   ggplot(aes(x=Task.Name, y=RT, fill=as.factor(Age.Category_ordered))) +
+  stat_summary(geom="bar", fun=mean, position="dodge", colour="black", show.legend = F) +
+  geom_errorbar(stat="summary", fun.data = mean_sdl, fun.args = list(mult=0.5),  
+                width=0.4, size=1.4,position=position_dodge(0.9), colour="#CCCCCC") +
+  coord_cartesian(ylim = c(0,1250)) +
+  scale_y_continuous(breaks = seq(0,1250,250)) +
+  labs(
+       x="",
+       y="Reaction Time in ms (+/- 0.5 SD)") +
+    theme(text = element_text(size = 30),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black"),
+         axis.text.x = element_text(size=25)) +
+         scale_fill_manual(values = confPalette, guide=guide_legend(title = "Age Group")))
+
+
+dev.off()
+
+```
+
+#### Missing data CR composite variable
+
+```{r, warning=F, message=F, include=F}
+## Missing data CR composite - now no missing data, hence, the code is in comments
+
+NA_PN_RT <- PN_RT %>%
+  dplyr::group_by(ID, type) %>%
+  dplyr::slice(1) %>%
+  dplyr::ungroup() %>%
+  dplyr::group_by(Task.Name, Age.Category) %>%
+  dplyr::summarise(n_na_CRbefore = (sum(is.na(CR.composite.before))),
+            n_na_CRduring = (sum(is.na(CR.composite.during))))
+NA_PN_RT
+```
+
+The missing data for the CR composite variable posed a problem in that it removed all data of participants with missing data in the LMEs. To solve this problem, we agreed on replacing values with the means per age category per CR subscale. As some participants were extreme outliers, we decided to winsorize at -2.5 and 2.5 SD. In this way, extreme values were still extreme values but wouldn't be excluded and, hence, result in missing values. This procedure led to no missing values and no excluded participants in our statistical models.
+
+## Statistical Analysis
+
+
+### Linear Mixed Models - Action naming
+
+```{r hist_PNactRT, warning=FALSE, error=FALSE, message=FALSE}
+# Only include trials for action naming (i.e., type==1)
+PNactions_RT <- PN_RT %>%
+  dplyr::filter(type==1)
+  # Check
+    # unique(PNactions_RT$Task.Name) #actions
+
+## Create histogram for distribution
+hist(PNactions_RT$RT, breaks = 100)
+```
+
+*Create user-defined contrasts for the Age Category variable*
+We will use Reverse Helmert coding where the first contrast in the model will reflect the difference between Middle-Aged and Younger adults, and the second contrast will reflect the difference between the Older adults and the mean of the Middle-Aged and Younger adults.
+
+
+```{r}
+PNactions_RT <- mutate(PNactions_RT,
+                    Age.Category = 
+                      factor(Age.Category, levels = c("Middle-Aged", "Younger", "Older")))
+
+PNactions_RT_coded <- PNactions_RT
+contrasts(PNactions_RT_coded$Age.Category) <- contr.helmert(3)
+contrasts(PNactions_RT_coded$Age.Category)
+
+```
+
+#### Check for Skewness seen the histograms
+
+```{r}
+skewness(log(PNactions_RT_coded$RT)) 
+```
+
+Skewness for action naming is 0.24 --> positively skewed but within limits (Bryne, 2010; George & Mallery, 2010)
+
+
+*Should we include random effects for ID and Trial.Number?*
+
+```{r, tidy=T}
+#Base model with log-transformed reaction time
+Mbase_act <- lm(log(RT) ~ 1, data=PNactions_RT_coded)
+
+#Base model with only ID/individual variability as random effect
+Mrandom.ID_act <- lmer(log(RT) ~ 1 +(1|ID), data=PNactions_RT_coded)
+#Base model with only Trial.Number/trial variability as random effect
+Mrandom.Trial_act <- lmer(log(RT) ~ 1 +(1|Trial.Number), data=PNactions_RT_coded)
+#Base model with both random effects
+Mrandom.All_act <- lmer(log(RT) ~ 1 +(1|ID) + (1|Trial.Number), data=PNactions_RT_coded)
+```
+
+AIC base model
+```{r}
+#Obtain AIC values for each model
+(AIC.base_act <- AIC(logLik(Mbase_act)))
+```
+
+AIC - only ID as random effect
+```{r}
+(AIC.reID_act <- AIC(logLik(Mrandom.ID_act)))
+```
+AIC - only trial as random effect
+```{r}
+(AIC.reTrial_act <- AIC(logLik(Mrandom.Trial_act)))
+```
+AIC - both ID and trial as random effect
+```{r}
+(AIC.reBoth_act <- AIC(logLik(Mrandom.All_act)))
+```
+
+The AIC for the model including both random effects is lowest --> we justified inclusion of both Trial and Subject as random effects.
+
+*Null model of reaction times for action naming with random effects included*
+
+```{r}
+M0_PNactRT <- lmer(RT ~ 1 +(1|ID) + (1|Trial.Number), data=PNactions_RT_coded, REML=FALSE)
+summary(M0_PNactRT)
+```
+
+*Unconditional model, i.e., the model without covariates/control measures*
+
+```{r}
+Muncond_PNactRT <- lmer(RT ~ Age.Category*CR.composite.before + (1|ID)  + (1|Trial.Number), data=PNactions_RT_coded, REML=FALSE)
+```
+
+*Full model, i.e., model with covariates/control measures. RT not log-transformed*
+
+```{r}
+Mfull_PNact_RT <- lmer(RT ~ Age.Category*CR.composite.before + GenCogProc.composite + (1|ID)  + (1|Trial.Number), data=PNactions_RT_coded, REML=FALSE)
+# summary(Mfull_PNact_RT)
+
+##Create a tidy output table for the fixed effects
+(tidyMfull_PNactRT <- broom.mixed::tidy(Mfull_PNact_RT, effect = "fixed",conf.int=T, conf.level=0.95))
+
+##Write tidy output data to .csv file
+#write.csv(tidyMfull_PNactRT, file = "./Figures and Tables/PNact_lmerFull.csv", row.names=F)
+
+```
+
+#### Checking Assumptions LMER Actions
+
+```{r, include=FALSE}
+#Create dataset where all na.rm=T of predictors are removed from the dataset
+actRTna.rm<- PNactions_RT_coded[complete.cases(PNactions_RT_coded$CR.composite.before),]
+actRTna.rm<- actRTna.rm[complete.cases(actRTna.rm$GenCogProc.composite),]
+
+ranef(Mfull_PNact_RT)#examines the random effects
+```
+
+##### Assumption 1 - Linearity
+
+```{r PNactRT_LinearityAssumption, comment=F, warning=F}
+plot(resid(Mfull_PNact_RT), actRTna.rm$RT)
+```
+We can assume linearity.
+
+##### Assumption 2 - Homogeneity of Variance / Homoscedasticity
+
+```{r}
+#Extracts the residuals and places them in a new column in RTna.rm
+actRTna.rm$Mfull.Res <- residuals(Mfull_PNact_RT) 
+#Takes the absolute values of the residuals
+actRTna.rm$Abs.Mfull.Res <- abs(actRTna.rm$Mfull.Res) 
+#Squares the absolute values to provide the more robust estimate
+actRTna.rm$Mfull.Res2 <- actRTna.rm$Abs.Mfull.Res^2 
+
+#ANOVA of the squared residuals
+Levene.Mfull <- lm(Mfull.Res2 ~ ID, data=actRTna.rm) 
+anova(Levene.Mfull) #Displays the results
+```
+p>0.05,so we can assume homogeneity of variance/homoscedasticity
+
+```{r PNactRT_HomoscedasticityAssumption}
+#Create plot for homogeneity of variance
+plot(fitted(Mfull_PNact_RT), residuals(Mfull_PNact_RT),
+     xlab = "Fitted Values", ylab="Residuals")
+abline(h=0, lty=2, lwd=2, col="purple")
+lines(smooth.spline(fitted(Mfull_PNact_RT), residuals(Mfull_PNact_RT)), col="red") 
+```
+Purple and red line roughly overlap, so we can assume homoscedasticity
+
+##### Assumption 3 - Residuals are normally distributed
+
+```{r PNactRT_qqplot}
+#Create qq plot of the full model
+qqmath(Mfull_PNact_RT)
+```
+
+Where does the bulk on the right and the outliers on the left come from? 
+
+After checking outliers: outliers on the left are now gone and were driven by a typo in the RT transcription of one participant
+
+```{r PNactRT_qqplot_groups}
+#Check whether the deviations from the QQplot are due to age category
+dda <- cbind(augment(Mfull_PNact_RT), group=actRTna.rm$Age.Category)
+sample_var <- "RT"
+group_var  <- "Age.Category"
+
+# code to compute the slope and the intercept of the qq-line per group
+
+qqlines <- function(vec, group) {
+    x <- qnorm(c(0.25, 0.75))    
+    y <- quantile(vec[!is.na(vec)], c(0.25, 0.75))
+    slope <- diff(y)/diff(x)
+    int <- y[1] - slope * x[1]
+    data.frame(slope, int, group)
+}
+
+slopedf <- do.call(rbind,lapply(unique(dda$group), function(grp) qqlines(dda[dda$group == grp,sample_var], grp)))
+
+#Create ggplot of the qq-line per age group to check for differences between age groups
+p <- ggplot(dda)+stat_qq(aes_string(sample=sample_var, colour=group_var)) + 
+    geom_abline(data = slopedf, aes(slope = slope, intercept = int, colour = group)) +
+    scale_colour_discrete(guide=guide_legend(title = "Age Group"), labels=c("Younger","Middle-Aged", "Older"))
+p
+
+```
+
+The younger age category seems to have a bigger bulk at the right but all age groups follow a similar pattern. 
+
+Try log transformation.
+
+```{r}
+#Full model with log-transformed Reaction Times as outcome variable
+logMfull_PNact_RT <- lmer(log(RT) ~ Age.Category*CR.composite.before + GenCogProc.composite + (1|ID)  + (1|Trial.Number), data=PNactions_RT_coded, REML=FALSE)
+summary(logMfull_PNact_RT)
+```
+
+*Checking the dimensionality of the variance-covariance matrices of random effects assumed in a maximal LMM*
+
+The number of principal components that cumulatively account for 100% of the variance is a reasonably stringent criterion for settling on the reduced dimensionality (Bates et al., 2015)
+
+```{r}
+summary(rePCA(logMfull_PNact_RT))
+```
+To assess overfitting of the model, we conducted a principal components analysis (PCA) of the random effects variance-covariance structure. The PCA did not indicate overspecification of the random effects for ID or Trial. Hence, we report the analysis using the full model with both random effects.
+
+*Checking variance explained by random factors:*
+
+```{r}
+0.01316/(0.01316+0.01362+0.05426) #~16.2% of variance that's left over after the variance explained by our predictor variables is explained by ID (i.e. subject)
+
+0.01362/(0.01316+0.01362+0.05426) #~16.8% of variance that's left over after the variance explained by our predictor variables is explained by trial (i.e. stimuli)
+
+```
+
+*Recheck model fit after log transformation*
+
+```{r PNactRT_qqplot_log}
+## Normality of residuals
+qqmath(logMfull_PNact_RT)
+```
+Looks much better now. Except the bulk on the left and right. But we will assume the assumption of normality of residuals is met.
+
+*Data per participant:*
+
+```{r PNactRT_Outlierboxplot}
+actdataPP <- PNactions_RT_coded %>%
+  dplyr::group_by(ID, Age.Category) %>%
+  dplyr::summarise(meanRT = mean(RT, na.rm=T),
+            sdRT = sd(RT, na.rm=T))
+
+#To look more into depth for any outliers and deviations.
+car::Boxplot(log(PNactions_RT_coded$RT) ~ PNactions_RT_coded$Age.Category, id.method="identify")
+
+```
+
+ Check each row in the table that was detected as outlier.
+
+--> these outliers don't seem to strange seen the frequencies of the words/pictures. A possibility would be the effect of online study. Distractions from home (longer RTs), differences in microphone or distance from microphone (causing either smaller or longer RTs than average), maybe they were positively/negatively primed somehow.
+
+*Histogram of transformed RTs for action naming*
+
+``` {r Hist_PNactRT_log}
+hist(log(PNactions_RT_coded$RT)) 
+```
+
+*Homoscedasticity with log-transformed reaction time*
+
+```{r PNactRT_log_homoscedasticity}
+plot(fitted(logMfull_PNact_RT), residuals(logMfull_PNact_RT),
+     xlab = "Fitted Values", ylab="Residuals")
+abline(h=0, lty=2, lwd=2, col="purple")
+lines(smooth.spline(fitted(logMfull_PNact_RT), residuals(logMfull_PNact_RT)), col="red") 
+```
+Purple and red line roughly overlap, so we can assume homoscedasticity
+
+### Results log RT action naming
+
+```{r}
+#Quick overview full model outcome
+glance(logMfull_PNact_RT)
+#Tidy model summary
+(log_tidyMfull_PNactRT <- broom.mixed::tidy(logMfull_PNact_RT, effects = "fixed", conf.int=T, conf.level=0.95))
+
+## Write tidy table to .csv file
+# write.csv(log_tidyMfull_PNactRT, file = "./Figures and Tables/logPNact_lmerFull.csv", row.names=F)
+
+```
+
+*Effect Size - R squared*
+
+```{r}
+r2_nakagawa(logMfull_PNact_RT)
+``` 
+
+Marginal R2 is the variance explained by fixed effects. Theoretical is for binomial distributions.
+Conditional R2 is the variance explained by the whole model.
+
+1.4% of the variance in the data is explained by the fixed effects only. 34% of the variance is explained by the whole model.
+
+
+## Picture Naming Objects
+
+```{r hist_PNobjRT}
+PNobjects_RT <- PN_RT %>%
+  # Only include trials for object naming (i.e., type==2)
+  dplyr::filter(type==2) %>%
+  group_by(ID, Name) %>%
+  slice(1) %>%
+  ungroup()
+  # Check
+    # unique(PNobjects_RT$Task.Name) #objects
+
+## Create histogram for distribution
+hist(PNobjects_RT$RT, breaks = 100)
+```
+
+*Create user-defined contrasts for the Age Category variable*
+We will use Reverse Helmert coding where the first contrast in the model will reflect the difference between Middle-Aged and Younger adults, and the second contrast will reflect the difference between the Older adults and the mean of the Middle-Aged and Younger adults.
+
+
+```{r}
+PNobjects_RT <- mutate(PNobjects_RT,
+                    Age.Category = 
+                      factor(Age.Category, levels = c("Middle-Aged", "Younger", "Older")))
+
+PNobjects_RT_coded <- PNobjects_RT
+contrasts(PNobjects_RT_coded$Age.Category) <- contr.helmert(3)
+contrasts(PNobjects_RT_coded$Age.Category)
+
+```
+
+```{r}
+skewness(log(PNobjects_RT_coded$RT))
+```
+0.61 -> positively skewed but within limits (Bryne, 2010; George & Mallery, 2010)
+
+### LMER for Objects
+
+*Should we include Trial and ID as random effects?*
+
+```{r}
+#Base model with log-transformed reaction time
+Mbase_obj <- lm(log(RT) ~ 1, data=PNobjects_RT_coded)
+#Base model with only ID/individual variability as random effect
+Mrandom.ID_obj <- lmer(log(RT) ~ 1 +(1|ID), data=PNobjects_RT_coded)
+#Base model with only Trial.Number/trial variability as random effect
+Mrandom.Trial_obj <- lmer(log(RT) ~ 1 +(1|Trial.Number), data=PNobjects_RT_coded)
+#Base model with both random effects
+Mrandom.All_obj <- lmer(log(RT) ~ 1 +(1|ID) + (1|Trial.Number), data=PNobjects_RT_coded)
+```
+
+AIC base model
+```{r}
+#Obtain AIC values for each model
+(AIC.base_obj <- AIC(logLik(Mbase_obj)))
+```
+AIC - only ID as random effect
+```{r}
+(AIC.reID_obj <- AIC(logLik(Mrandom.ID_obj)))
+```
+AIC - only trial as random effect
+```{r}
+(AIC.reTrial_obj <- AIC(logLik(Mrandom.Trial_obj)))
+```
+AIC - both ID and trial as random effect
+```{r}
+(AIC.reBoth_obj <- AIC(logLik(Mrandom.All_obj)))
+```
+
+The AIC for the model including both random effects is lowest --> we justified inclusion of both Trial and Subject as random effects.
+
+*Null model of reaction times for object naming with random effects included*
+
+```{r}
+M0_PNobjRT <- lmer(RT ~ 1 +(1|ID) + (1|Trial.Number), data=PNobjects_RT_coded, REML=FALSE)
+summary(M0_PNobjRT)
+```
+
+*Unconditional model, i.e., the model without covariates/control measures*
+
+```{r}
+Muncond_PNobjRT <- lmer(RT ~ Age.Category*CR.composite.before + (1|ID)  + (1|Trial.Number), data=PNobjects_RT_coded, REML=FALSE)
+```
+
+*Full model, i.e., model with covariates/control measures. RT not log-transformed*
+
+```{r}
+Mfull_PNobj_RT <- lmer(RT ~ Age.Category*CR.composite.before + GenCogProc.composite + (1|ID)  + (1|Trial.Number), data=PNobjects_RT_coded, REML=FALSE)
+# summary(Mfull_PNobj_RT)
+
+##Create a tidy output table for the fixed effects
+(tidyMfull_PNobjRT <- broom.mixed::tidy(Mfull_PNobj_RT, effect = "fixed",conf.int=T, conf.level=0.95))
+```
+
+#### Checking Assumptions LMER Objects
+
+```{r, include=FALSE}
+#Create dataset where all na.rm=T of predictors are removed from the dataset
+objRTna.rm<- PNobjects_RT_coded[complete.cases(PNobjects_RT_coded$CR.composite.before),]
+objRTna.rm<- objRTna.rm[complete.cases(objRTna.rm$GenCogProc.composite),]
+
+#Examines the random effects
+ranef(Mfull_PNobj_RT)
+```
+
+##### Assumption 1 - Linearity
+
+```{r PNobjRT_LinearityAssumption, comment=F, warning=F}
+plot(resid(Mfull_PNobj_RT), objRTna.rm$RT)
+```
+
+We can assume linearity.
+
+##### Assumption 2 - Homogeneity of Variance / Homoscedasticity
+
+```{r}
+#Extracts the residuals and places them in a new column in RTna.rm
+objRTna.rm$Mfull.Res <- residuals(Mfull_PNobj_RT) 
+#Takes the absolute values of the residuals
+objRTna.rm$Abs.Mfull.Res <- abs(objRTna.rm$Mfull.Res)
+#Squares the absolute values to provide the more robust estimate
+objRTna.rm$Mfull.Res2 <- objRTna.rm$Abs.Mfull.Res^2
+
+#ANOVA of the squared residuals
+Levene.Mfull <- lm(Mfull.Res2 ~ ID, data=objRTna.rm) 
+anova(Levene.Mfull) #Displays the results 
+``` 
+p>0.05,so we can assume homogeneity of variance/homoscedasticity
+
+```{r PNobjRT_HomoscedasticityAssumption}
+#Create plot for homogeneity of variance
+plot(fitted(Mfull_PNobj_RT), residuals(Mfull_PNobj_RT),
+     xlab = "Fitted Values", ylab="Residuals")
+abline(h=0, lty=2, lwd=2, col="purple")
+lines(smooth.spline(fitted(Mfull_PNobj_RT), residuals(Mfull_PNobj_RT)), col="red") 
+```
+Purple and red line roughly overlap, so we can assume homoscedasticity
+
+##### Assumption 3 - Residuals are normally distributed
+
+```{r PNobjRT_qqplot}
+#QQ plot to check normality of residuals
+qqmath(Mfull_PNobj_RT)
+```
+
+Where does the bulk on the right come from? (CHECK OUTLIERS)
+
+```{r PNobjRT_qqplot_groups}
+#Check whether the deviations from the QQplot are due to age category
+dda <- cbind(augment(Mfull_PNobj_RT), group=objRTna.rm$Age.Category)
+sample_var <- "RT"
+group_var  <- "Age.Category"
+
+# code to compute the slope and the intercept of the qq-line 
+
+qqlines <- function(vec, group) {
+    x <- qnorm(c(0.25, 0.75))    
+    y <- quantile(vec[!is.na(vec)], c(0.25, 0.75))
+    slope <- diff(y)/diff(x)
+    int <- y[1] - slope * x[1]
+    data.frame(slope, int, group)
+}
+
+slopedf <- do.call(rbind,lapply(unique(dda$group), function(grp) qqlines(dda[dda$group == grp,sample_var], grp)))
+
+#Create ggplot of the qq-line per age group to check for differences between age groups
+p <- ggplot(dda)+stat_qq(aes_string(sample=sample_var, colour=group_var)) + 
+    geom_abline(data = slopedf, aes(slope = slope, intercept = int, colour = group))+
+      scale_colour_discrete(guide=guide_legend(title = "Age Group"), labels=c("Younger","Middle-Aged", "Older"))
+
+p
+
+```
+
+The Older age group seems to have a bigger bulk at the right but all age groups follow a similar pattern.
+
+Try log transformation.
+
+```{r}
+#Full model with log-transformed Reaction Times as outcome variable
+logMfull_PNobj_RT <- lmer(log(RT) ~ Age.Category*CR.composite.before + GenCogProc.composite + (1|ID)  + (1|Trial.Number), data=PNobjects_RT_coded, REML=FALSE)
+summary(logMfull_PNobj_RT)
+```
+
+```{r, message=F}
+#Look at pairwise comparisons between contrasts
+logMfull_PNobj_RT.emmeans <- emmeans::emmeans(logMfull_PNobj_RT, ~Age.Category)
+pairs(logMfull_PNobj_RT.emmeans)
+
+```
+
+*Checking the dimensionality of the variance-covariance matrices of random effects assumed in a maximal LMM*
+
+The number of principal components that cumulatively account for 100% of the variance is a reasonably stringent criterion for settling on the reduced dimensionality (Bates et al., 2015)
+```{r}
+summary(rePCA(logMfull_PNobj_RT))
+```
+To assess overfitting of the model, we conducted a principal components analysis (PCA) of the random effects variance-covariance structure. The PCA did not indicate overspecification of the random effects for ID or Trial. Hence, we report the analysis using the full model with both random effects.
+
+
+*Checking variance explained by random factors:*
+
+```{r}
+0.017115 /(0.017115 + 0.006495  +0.046923  ) #~24.3% of variance that's left over after the variance explained by our predictor variables is explained by ID (i.e. subject)
+
+ 0.006495  /(0.017115 + 0.006495  +0.046923  ) #~9.2% of variance that's left over after the variance explained by our predictor variables is explained by trial (i.e. stimuli)
+```
+
+*Recheck model fit after log transformation*
+
+```{r PNobjRT_log_qqplot}
+## Normality of residuals
+qqmath(logMfull_PNobj_RT)
+```
+Looks much better now. Except the outliers on the right. We will assume normality of residuals.
+
+*Data per participant:*
+
+```{r PNobjRT_Outlierboxplot}
+objdataPP <- PNobjects_RT %>%
+  dplyr::group_by(ID) %>%
+  dplyr::summarise(meanRT = mean(RT, na.rm=T),
+            sdRT = sd(RT, na.rm=T))
+
+#To look more into depth for any outliers and deviations.
+car::Boxplot(log(PNobjects_RT$RT) ~ PNobjects_RT$Age.Category, id.method="identify")
+
+```
+ Check each row in the table that was detected as outlier.
+
+*Histogram of transformed RTs for object naming*
+
+```{r hist_PNobjRT_log}
+hist(log(PNobjects$RT),breaks=50) 
+```
+
+*Homoscedasticity with log-transformed reaction time*
+
+```{r PNobjRT_log_HomoscedasticityAssumption}
+plot(fitted(logMfull_PNobj_RT), residuals(logMfull_PNobj_RT),
+     xlab = "Fitted Values", ylab="Residuals")
+abline(h=0, lty=2, lwd=2, col="purple")
+lines(smooth.spline(fitted(logMfull_PNobj_RT), residuals(logMfull_PNobj_RT)), col="red") 
+```
+Purple and red line roughly overlap, so we can assume homoscedasticity
+
+### Results RT object naming
+
+```{r}
+#Quick overview full model outcome
+glance(logMfull_PNobj_RT)
+#Tidy model summary
+(log_tidyMfull_PNobjRT <- broom.mixed::tidy(logMfull_PNobj_RT, effects = "fixed", conf.int=T, conf.level=0.95))
+
+## Write tidy table to .csv file
+# write.csv(log_tidyMfull_PNobjRT, file = "./Figures and Tables/logPNobj_lmerFull.csv", row.names=F)
+```
+
+*Effect Size - R squared*
+
+```{r}
+r2_nakagawa(logMfull_PNobj_RT)
+``` 
+
+Marginal R2 is the variance explained by fixed effects. Theoretical is for binomial distributions.
+Conditional R2 is the variance explained by the whole model.
+
+5.9% of the variance in the data is explained by the fixed effects only. 37.4% of the variance is explained by the whole model.
+
+
+## Visualising significant predictors
+
+```{r, warning = F}
+#Create labels for legend per age group
+# Ages = as_labeller(c(`1`="Younger", `2`="Middle-Aged", `3`="Older"))
+
+#Colour Palette - colourblind friendly
+cbbPalette <- c("#999999", "#E69F00", "#56B4E9")
+```
+
+*Relationship RT and Cognitive Processing speed for reaction time (outcome) of picture naming Actions*
+
+```{r PNactRT_SoP_corplot}
+(plot.PNact_GenCog <- ggplot(PNactions_RT, aes(x=GenCogProc.composite, y=RT, colour=as.factor(Age.Category))) +
+   geom_jitter(width = 0.25, size=0.8, show.legend =F) +
+   geom_smooth(method = "lm", formula = y~x, fill="white", colour="black", show.legend=F) +
+   labs(x = "General Cognitive Processing (z-distribution)",
+        y= "Reaction time (in ms)",
+        title = "Relationship between General Cognitive Processing 
+        and Picture Naming Reaction Time Actions") +
+   facet_grid(~Age.Category) +
+    theme(text = element_text(size = 14),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+         scale_colour_manual(values = cbbPalette))
+```
+*Relationship RT and General Cognitive Processing for reaction time (outcome) of picture naming Objects*
+
+```{r PNobjRT_GenCog_corplot, warning = F}
+(plot.PNobj_GenCog <- ggplot(PNobjects_RT, aes(x=GenCogProc.composite, y=RT, colour=as.factor(Age.Category))) +
+   geom_jitter(size=0.8, width = 0.25, show.legend=F) +
+   geom_smooth(method = "lm", formula = y~x, fill="white", size=1, colour="black") +
+   labs(x = "General Cognitive Processing (z-distribution)",
+        y= "Reaction time (in ms)",
+        title = "The relationship between General Cognitive Processing
+        and Picture Naming Reaction Time Objects")+
+   facet_grid(~Age.Category) +
+   theme(text = element_text(size = 14),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+         axis.line.y = element_line(color="black")) +
+         scale_colour_manual(values = cbbPalette))
+
+```
+
+*Relationship Reaction Times and Cognitive Reserve (CR) for the period preceding the COVID-19 pandemic for reaction time (outcome) of picture naming Actions*
+
+```{r PNactRT_CR_corplot, warning = F}
+#Save figure as tiff file
+# tiff(file="D:/OneDrive - Lancaster University/PhD project/Presentations/SciBar 2022/PNactionsRT_CR_AllAges.tiff",
+# res = 300, family = "sans", width = 7, height=4.5, units="in")
+
+PNact_CR_means <- PNactions_RT %>%
+  group_by(ID, Age.Category,CR.composite.before) %>%
+  summarise(meanRT = mean(RT, na.rm=T),
+            sdRT = sd(RT, na.rm = T),
+            n = n())
+
+(plot.PNact_CR <- ggplot(PNactions_RT, aes(x=CR.composite.before, y=RT, shape=as.factor(Age.Category),colour = as.factor(Age.Category))) +
+   geom_point(size=1, show.legend = F, alpha=.8) +
+   geom_smooth(method = "lm", formula = y~x, fill="white", colour="black", show.legend = F, size=.8) +
+   labs(x = "\n CR Score Before COVID-19 (Z-Scores)",
+        y= "Reaction Time (in milliseconds) \n",
+        title = "Relationship between CR pre-Covid-19 and Action Naming
+        Reaction Times") +
+      facet_grid(.~Age.Category) +
+    theme(text = element_text(size = 14),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+        axis.line.y = element_line(color="black")) +
+  scale_colour_manual(values = cbbPalette))
+
+# dev.off()
+```
+*Relationship Reaction Times and Cognitive reserve for the period preceding the COVID-19 pandemic for reaction time (outcome) of picture naming Objects*
+
+```{r PNobjRT_CR_corplot, warning = F}
+# png(file="./Figures and Tables/RelationCR-PNobjRT.png",
+# width=600, height=350)
+
+(plot.PNobj_CR <- ggplot(PNobjects_RT, aes(x=CR.composite.before, y=RT, colour=as.factor(Age.Category))) +
+   geom_jitter(width = 0.25, size=0.8, show.legend = F) +
+   geom_smooth(method = "lm", formula = y~x, fill="white", colour="black", show.legend = F) +
+   labs(x = "CR score before Covid-19 (z-distribution)",
+        y= "Reaction time (in ms)",
+        title = "Relationship between CR pre-Covid-19 
+        and Object Naming Reaction Times") +
+   facet_grid(~Age.Category)+
+       theme(text = element_text(size = 12),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+        axis.line.y = element_line(color="black")) +
+  scale_colour_manual(values = cbbPalette))
+
+# dev.off()   
+
+```
+### Model comparisons for the CR measure preciding and coinciding with the COVID-19 pandemic
+
+The effect of the COVID-19 pandemic on CR and subsequent behavioural performance
+
+*Action Naming*
+```{r}
+#Full Action Naming log model with CR coinciding the COVID-19 pandemic
+logMfull_PNact_RT.during <- lmer(log(RT) ~ Age.Category*CR.composite.during + GenCogProc.composite + (1|ID)  + (1|Trial.Number), data=PNactions_RT_coded, REML=FALSE)
+# summary(logMfull_PNact_RT.during)
+```
+*Comparing the Action Naming models: preceding vs. coinciding the COVID-19 pandemic*
+
+```{r}
+anova(logMfull_PNact_RT, logMfull_PNact_RT.during)
+```
+
+There are barely any differences between the two models. The AIC is a tiny bit lower for the CR composite score before the pandemic, meaning that that model fits the data slightly better.
+
+*Object Naming*
+```{r}
+#Full Object Naming log model with CR coinciding the COVID-19 pandemic
+logMfull_PNobj_RT.during <- lmer(log(RT) ~ Age.Category*CR.composite.during + GenCogProc.composite + (1|ID)  + (1|Trial.Number), data=PNobjects_RT_coded, REML=FALSE)
+# summary(logMfull_PNobj_RT.during)
+```
+
+*Comparing the Object Naming models: preceding vs. coinciding the COVID-19 pandemic*
+```{r}
+anova(logMfull_PNobj_RT, logMfull_PNobj_RT.during)
+```
+
+There are barely any differences between the two models. The AIC is a tiny bit lower for the CR composite score during the pandemic, meaning that that model fits the data slightly better. In the model with CR during, the interaction term between CR score and being an older adult is not trending anymore.
+
+*Descriptives Average CR before and during Covid-19*
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+
+CompareCR <- PN_all %>% #dataset with both object and action naming data
+  group_by(Age.Category) %>%
+  #Create means for CR scores preceding and coinciding with the COVID-19 pandemic
+  summarise(CR.before = mean(CR.composite.before),
+            CR.during = mean(CR.composite.during)) %>%
+  #Convert from wide to long format
+  pivot_longer(cols = CR.before:CR.during, names_to = "Period",values_to = "CRscore")
+
+#Summary table with mean CR scores
+CompareCR
+```
+*Visualisation Average CR before and during Covid-19*
+
+```{r Barplot_CompareCRperiods}
+#Save as png file
+# png(file="./Figures and Tables/CR_Before-vs-During.png",
+# width=350, height=200)
+
+(Barplot_CompareCR <-ggplot(CompareCR, aes(x=as.factor(Period), y=CRscore, fill=as.factor(Period))) +
+  stat_summary(geom="bar", fun=mean, position="dodge", show.legend = F) +
+  scale_fill_manual(values = c("midnightblue", "magenta"), guide=guide_legend(title = "Period"), labels=c("Before Covid-19","During Covid-19"))+
+  coord_cartesian(ylim = c(-.06,.06)) +
+  scale_y_continuous(breaks = seq(-.05,.05, 0.025)) +
+  labs(title = "CR scores before and during Covid-19",
+       x="Before and during Covid-19",
+       y="Average CR score (z-distribution)") +
+  theme_grey() +
+    facet_grid(~Age.Category)+
+           theme(text = element_text(size = 14),
+          panel.background  = element_rect(fill="white"),
+          plot.background = element_rect(fill = "white"),
+          strip.background = element_rect(fill="white"),
+          axis.line.x = element_line(color="black"),
+        axis.line.y = element_line(color="black"))+
+   geom_hline(yintercept=0))
+
+# dev.off()
+```
+
+## References
+
+```{r, include=F, echo=FALSE}
+knitr::write_bib(.packages(), "packages.bib")
+```
+
+---
+nocite: '@*'
+---
